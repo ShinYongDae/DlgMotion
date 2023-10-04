@@ -1,0 +1,11 @@
+Debug/
+ipch/
+x64/
+DlgMotion.sdf
+DlgMotion.VC.db
+DlgMotion/Debug/
+DlgMotion/x64/
+.vs/
+DlgMotion/DlgMotion.aps
+
+
