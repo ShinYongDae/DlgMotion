@@ -12,7 +12,7 @@
 
 CEtherCat::CEtherCat(CWnd* pParent)
 {
-	AfxMessageBox(_T("Create CEtherCat"));
+	//AfxMessageBox(_T("Create CEtherCat"));
 	int i = 0;
 
 	UINT16 nBoardID = NMC_DEVICE_BOARD;
@@ -29,7 +29,7 @@ CEtherCat::CEtherCat(CWnd* pParent)
 	m_pParent = pParent;
 	m_pParam = NULL;
 #ifdef USE_NMC
-	m_pMotionCard = NULL;
+	m_pNmcDevice = NULL;
 #endif
 
 	m_pParamMotion = NULL;
@@ -85,7 +85,10 @@ CEtherCat::CEtherCat(CWnd* pParent)
 	if (!Create(NULL, NULL, WS_CHILD, rt, pParent, 0))
 		AfxMessageBox(_T("CEtherCat::Create() Failed!!!"));
 
-	m_sPathMotionParam = PATH_MOTION_PARAM;
+	TCHAR strPrevDir[MAX_PATH];
+	DWORD dwLength = GetCurrentDirectory(MAX_PATH, strPrevDir);
+
+	m_sPathMotionParam.Format(_T("%s\\%s"), strPrevDir, PATH_MOTION_PARAM);
 	LoadParam();
 }
 
@@ -117,10 +120,10 @@ void CEtherCat::FreeAll()
 		m_pMyFileErrMap = NULL;
 	}
 #ifdef USE_NMC
-	if (m_pMotionCard)
+	if (m_pNmcDevice)
 	{
-		delete m_pMotionCard;
-		m_pMotionCard = NULL;
+		delete m_pNmcDevice;
+		m_pNmcDevice = NULL;
 	}
 #endif
 	if (m_pParamMotor)
@@ -1084,12 +1087,12 @@ void CEtherCat::LoadParam()
 BOOL CEtherCat::InitBoard()
 {
 #ifdef USE_NMC
-	if (!m_pMotionCard)
+	if (!m_pNmcDevice)
 	{
-		m_pMotionCard = new CNmcDevice(this);
-		if (!m_pMotionCard)
+		m_pNmcDevice = new CNmcDevice(this);
+		if (!m_pNmcDevice)
 		{
-			delete m_pMotionCard;
+			delete m_pNmcDevice;
 			return FALSE;
 		}
 	}
@@ -1100,27 +1103,27 @@ BOOL CEtherCat::InitBoard()
 BOOL CEtherCat::InitNmcBoard()
 {
 #ifdef USE_NMC
-	if (!m_pMotionCard)
+	if (!m_pNmcDevice)
 	{
 
-		m_pMotionCard = new CNmcDevice((CWnd *)this);
+		m_pNmcDevice = new CNmcDevice((CWnd *)this);
 
-		if (!m_pMotionCard)
+		if (!m_pNmcDevice)
 		{
 			return FALSE;
 		}
 
 	}
 
-	if (m_pMotionCard)
+	if (m_pNmcDevice)
 	{
-		m_pMotionCard->InitDevice(1); // 1 is Number Of NMMC Board.
+		m_pNmcDevice->InitDevice(1); // 1 is Number Of NMMC Board.
 		Sleep(100);
 	}
 	else
 		return FALSE;
 
-	if (!m_pMotionCard->CheckNmcConnection())
+	if (!m_pNmcDevice->CheckNmcConnection())
 	{
 		AfxMessageBox(_T("이더캣 통신이 불안정합니다. 노드 끊김 감지, 이더캣 장치의 상태 및 케이블 결속 상태를 재확인하고 프로그램을 다시 실행하십시오. 프로그램이 종료됩니다"), MB_ICONSTOP | MB_SYSTEMMODAL | MB_SETFOREGROUND | MB_TOPMOST);
 		return FALSE;
@@ -1131,7 +1134,7 @@ BOOL CEtherCat::InitNmcBoard()
 		SetConfigure();
 		//WriteData(0x01 << DO_MC);
 		//Sleep(100);
-		m_pMotionCard->RestoreSwEmergency();	// -1: Fault , 1: Emergency Signal Off complete, 2: Previous Emergency Signal Off-state, 3: Normal
+		m_pNmcDevice->RestoreSwEmergency();	// -1: Fault , 1: Emergency Signal Off complete, 2: Previous Emergency Signal Off-state, 3: Normal
 	}
 #endif
 	return TRUE;
@@ -1142,8 +1145,8 @@ BOOL CEtherCat::CreateObject()
 #ifdef USE_NMC
 	for (int nAxis = 0; nAxis < m_nTotAxis; nAxis++)
 	{
-		if (m_pMotionCard)
-			m_pMotionCard->CreateAxis(nAxis);
+		if (m_pNmcDevice)
+			m_pNmcDevice->CreateAxis(nAxis);
 	}
 #endif
 	return TRUE;
@@ -1154,11 +1157,11 @@ BOOL CEtherCat::ReadBit(BYTE cBit, BOOL bInput)
 #ifdef USE_NMC
 	if (bInput)
 	{
-		return m_pMotionCard->ReadIn((long)cBit);
+		return m_pNmcDevice->ReadIn((long)cBit);
 	}
 	else
 	{
-		return m_pMotionCard->ReadOut((long)cBit);
+		return m_pNmcDevice->ReadOut((long)cBit);
 	}
 #endif
 	return FALSE;
@@ -1171,12 +1174,12 @@ unsigned long CEtherCat::ReadAllBit(BOOL bInput)
 
 	if (bInput)
 	{
-		m_pMotionCard->In32(&nData);
+		m_pNmcDevice->In32(&nData);
 		return ((unsigned long)nData);
 	}
 	else
 	{
-		nData = m_pMotionCard->ReadOut();
+		nData = m_pNmcDevice->ReadOut();
 		return ((unsigned long)nData);
 	}
 #endif
@@ -1186,24 +1189,24 @@ unsigned long CEtherCat::ReadAllBit(BOOL bInput)
 void CEtherCat::WriteData(long lData)
 {
 #ifdef USE_NMC
-	m_pMotionCard->Out32(lData);
+	m_pNmcDevice->Out32(lData);
 #endif
 }
 
 void CEtherCat::WriteBit(BYTE cBit, BOOL bOn)
 {
 #ifdef USE_NMC
-	m_pMotionCard->OutBit((long)cBit, bOn);
+	m_pNmcDevice->OutBit((long)cBit, bOn);
 #endif
 }
 
 void CEtherCat::SetConfigure()
 {
 #ifdef USE_NMC
-	if (!m_pMotionCard)
+	if (!m_pNmcDevice)
 		return;
 
-	m_pMotionCard->SetConfigure(m_nBoardId, m_nDevIdIoIn, m_nDevIdIoOut, m_nOffsetAxisID);
+	m_pNmcDevice->SetConfigure(m_nBoardId, m_nDevIdIoIn, m_nDevIdIoOut, m_nOffsetAxisID);
 #endif
 	SetMotionParam();
 }
@@ -1211,15 +1214,15 @@ void CEtherCat::SetConfigure()
 void CEtherCat::SetMotionParam()
 {
 #ifdef USE_NMC
-	if (m_pMotionCard)
-		m_pMotionCard->SetParam();
+	if (m_pNmcDevice)
+		m_pNmcDevice->SetParam();
 #endif
 }
 
 BOOL CEtherCat::AmpReset(int nMsId)
 {
 #ifdef USE_NMC
-	return m_pMotionCard->GetAxis(nMsId)->AmpFaultReset();
+	return m_pNmcDevice->GetAxis(nMsId)->AmpFaultReset();
 #endif
 	return TRUE;
 }
@@ -1227,7 +1230,7 @@ BOOL CEtherCat::AmpReset(int nMsId)
 BOOL CEtherCat::ServoOnOff(int nAxisId, BOOL bOnOff)
 {
 #ifdef USE_NMC
-	return m_pMotionCard->GetAxis(nAxisId)->SetAmpEnable(bOnOff);
+	return m_pNmcDevice->GetAxis(nAxisId)->SetAmpEnable(bOnOff);
 #endif
 	return TRUE;
 }
@@ -1248,7 +1251,7 @@ BOOL CEtherCat::SearchHomePos(int nMotionId, BOOL bThread)
 	if (!m_pParamMotion[nMotionId].Home.bAct)
 		return TRUE;
 #ifdef USE_NMC
-	if (!m_pMotionCard->SearchHomePos(nMotionId, bThread))
+	if (!m_pNmcDevice->SearchHomePos(nMotionId, bThread))
 		return FALSE;
 #endif
 	return TRUE;
@@ -1257,7 +1260,7 @@ BOOL CEtherCat::SearchHomePos(int nMotionId, BOOL bThread)
 BOOL CEtherCat::IsHome(int nMotionId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->IsHome(nMotionId));
+	return (m_pNmcDevice->IsHome(nMotionId));
 #endif
 	return TRUE;
 }
@@ -1265,7 +1268,7 @@ BOOL CEtherCat::IsHome(int nMotionId)
 BOOL CEtherCat::IsHomeDone()
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->IsHomeDone());
+	return (m_pNmcDevice->IsHomeDone());
 #endif
 	return TRUE;
 }
@@ -1273,7 +1276,7 @@ BOOL CEtherCat::IsHomeDone()
 BOOL CEtherCat::IsHomeDone(int nMotionId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->IsHomeDone(nMotionId));
+	return (m_pNmcDevice->IsHomeDone(nMotionId));
 #endif
 	return TRUE;
 }
@@ -1281,7 +1284,7 @@ BOOL CEtherCat::IsHomeDone(int nMotionId)
 BOOL CEtherCat::SetVMove(int nMotionId, double fVel, double fAcc)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->SetVMove(nMotionId, fVel, fAcc));
+	return (m_pNmcDevice->SetVMove(nMotionId, fVel, fAcc));
 #endif
 	return TRUE;
 }
@@ -1289,7 +1292,7 @@ BOOL CEtherCat::SetVMove(int nMotionId, double fVel, double fAcc)
 BOOL CEtherCat::VMove(int nMotionId, int nDir)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->VMove(nMotionId, nDir));
+	return (m_pNmcDevice->VMove(nMotionId, nDir));
 #endif
 	return TRUE;
 }
@@ -1297,7 +1300,7 @@ BOOL CEtherCat::VMove(int nMotionId, int nDir)
 BOOL CEtherCat::Move(int nMotionId, double *pTgtPos, BOOL bAbs, BOOL bWait)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->Move(nMotionId, pTgtPos, bAbs, bWait));
+	return (m_pNmcDevice->Move(nMotionId, pTgtPos, bAbs, bWait));
 #endif
 	return TRUE;
 }
@@ -1305,7 +1308,7 @@ BOOL CEtherCat::Move(int nMotionId, double *pTgtPos, BOOL bAbs, BOOL bWait)
 BOOL CEtherCat::Move(int nMotionId, double *pTgtPos, double dRatio, BOOL bAbs, BOOL bWait)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->Move(nMotionId, pTgtPos, dRatio, bAbs, bWait));
+	return (m_pNmcDevice->Move(nMotionId, pTgtPos, dRatio, bAbs, bWait));
 #endif
 	return TRUE;
 }
@@ -1313,7 +1316,7 @@ BOOL CEtherCat::Move(int nMotionId, double *pTgtPos, double dRatio, BOOL bAbs, B
 BOOL CEtherCat::Move(int nMotionId, double *pTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs, BOOL bWait)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->Move(nMotionId, pTgtPos, dSpd, dAcc, dDec, bAbs, bWait));
+	return (m_pNmcDevice->Move(nMotionId, pTgtPos, dSpd, dAcc, dDec, bAbs, bWait));
 #endif
 	return TRUE;
 }
@@ -1321,7 +1324,7 @@ BOOL CEtherCat::Move(int nMotionId, double *pTgtPos, double dSpd, double dAcc, d
 BOOL CEtherCat::Move(int nMotionId, double dTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs, BOOL bWait)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->Move(nMotionId, dTgtPos, dSpd, dAcc, dDec, bAbs, bWait));
+	return (m_pNmcDevice->Move(nMotionId, dTgtPos, dSpd, dAcc, dDec, bAbs, bWait));
 #endif
 	return TRUE;
 }
@@ -1329,7 +1332,7 @@ BOOL CEtherCat::Move(int nMotionId, double dTgtPos, double dSpd, double dAcc, do
 BOOL CEtherCat::IsMotionDone(int nMotionId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->IsMotionDone(nMotionId));
+	return (m_pNmcDevice->IsMotionDone(nMotionId));
 #endif
 	return TRUE;
 }
@@ -1337,7 +1340,7 @@ BOOL CEtherCat::IsMotionDone(int nMotionId)
 BOOL CEtherCat::IsInPosition(int nMotionId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->IsInPosition(nMotionId));
+	return (m_pNmcDevice->IsInPosition(nMotionId));
 #endif
 	return TRUE;
 }
@@ -1346,7 +1349,16 @@ double CEtherCat::GetActualPosition(int nAxisId)
 {
 	double dPos = -10000.0;
 #ifdef USE_NMC
-	dPos = m_pMotionCard->GetActualPosition(nAxisId);
+	dPos = m_pNmcDevice->GetActualPosition(nAxisId);
+#endif
+	return(dPos);
+}
+
+double CEtherCat::GetCommandPosition(int nAxisId)
+{
+	double dPos = -10000.0;
+#ifdef USE_NMC
+	dPos = m_pNmcDevice->GetCommandPosition(nAxisId);
 #endif
 	return(dPos);
 }
@@ -1355,7 +1367,7 @@ double CEtherCat::GetActualVelocity(int nAxisId)
 {
 	double dVel = 0.0;
 #ifdef USE_NMC
-	dVel = m_pMotionCard->GetActualVelocity(nAxisId);
+	dVel = m_pNmcDevice->GetActualVelocity(nAxisId);
 #endif
 	return(dVel);
 }
@@ -1363,7 +1375,7 @@ double CEtherCat::GetActualVelocity(int nAxisId)
 BOOL CEtherCat::Stop(int nMotionId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->Stop(nMotionId));
+	return (m_pNmcDevice->Stop(nMotionId));
 #endif
 	return TRUE;
 
@@ -1372,7 +1384,7 @@ BOOL CEtherCat::Stop(int nMotionId)
 BOOL CEtherCat::EStop(int nMotionId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->EStop(nMotionId));
+	return (m_pNmcDevice->EStop(nMotionId));
 #endif
 	return TRUE;
 
@@ -1381,7 +1393,7 @@ BOOL CEtherCat::EStop(int nMotionId)
 BOOL CEtherCat::VMoveStop(int nMotionId, int nDir)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->VMoveStop(nMotionId, nDir));
+	return (m_pNmcDevice->VMoveStop(nMotionId, nDir));
 #endif
 	return TRUE;
 
@@ -1390,7 +1402,7 @@ BOOL CEtherCat::VMoveStop(int nMotionId, int nDir)
 BOOL CEtherCat::IsLimit(int nMotionId, int nDir)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->IsLimit(nMotionId, nDir));
+	return (m_pNmcDevice->IsLimit(nMotionId, nDir));
 #endif
 	return TRUE;
 
@@ -1399,7 +1411,7 @@ BOOL CEtherCat::IsLimit(int nMotionId, int nDir)
 BOOL CEtherCat::Clear(int nMotionId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->Clear(nMotionId));
+	return (m_pNmcDevice->Clear(nMotionId));
 #endif
 	return TRUE;
 
@@ -1408,7 +1420,7 @@ BOOL CEtherCat::Clear(int nMotionId)
 long CEtherCat::GetState(int nMotionId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->GetState(nMotionId));
+	return (m_pNmcDevice->GetState(nMotionId));
 #endif
 	return TRUE;
 
@@ -1417,7 +1429,7 @@ long CEtherCat::GetState(int nMotionId)
 BOOL CEtherCat::Abort(int nMotionId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->Abort(nMotionId));
+	return (m_pNmcDevice->Abort(nMotionId));
 #endif
 	return TRUE;
 
@@ -1576,7 +1588,7 @@ double CEtherCat::GetLeadPitch(int nAxisId)
 BOOL CEtherCat::IsEnable(int nMsId)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->IsEnable(nMsId));
+	return (m_pNmcDevice->IsEnable(nMsId));
 #endif
 	return TRUE;
 
@@ -1585,7 +1597,7 @@ BOOL CEtherCat::IsEnable(int nMsId)
 BOOL CEtherCat::IsServoOn(int nMotorID)
 {
 #ifdef USE_NMC
-	return (m_pMotionCard->IsServoOn(nMotorID));
+	return (m_pNmcDevice->IsServoOn(nMotorID));
 #endif
 	return TRUE;
 
@@ -1593,7 +1605,7 @@ BOOL CEtherCat::IsServoOn(int nMotorID)
 
 void CEtherCat::MotionAbortAll()
 {
-	for (int nAxisId = 0; nAxisId < MAX_AXIS; nAxisId++)
+	for (int nAxisId = 0; nAxisId < m_ParamCtrl.nTotAxis; nAxisId++)
 	{
 		MotionAbort(nAxisId);	// equalize Command position and Actual Position
 	}
@@ -1601,7 +1613,7 @@ void CEtherCat::MotionAbortAll()
 
 BOOL CEtherCat::MotionAbort(int nMsId)
 {
-	if (nMsId >= MAX_AXIS)
+	if (nMsId >= m_ParamCtrl.nTotMotion)
 		return FALSE;
 
 	return Abort(nMsId);

@@ -143,6 +143,7 @@ public:
 	double Pulse2Len(int nAxisId, long nPulse);
 	double CalSpeedProfile(int nAxisID, double fLength, double &fVel, double &fAcc, double &fDec);
 	double GetActualPosition(int nAxisId);
+	double GetCommandPosition(int nAxisId);
 
 	void EnableSensorStop(int nAxisId, int nSensorIndex, BOOL bEnable); // nSensorIndex : 0 ~ 4 , bEnable
 	/*

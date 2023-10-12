@@ -376,10 +376,10 @@ BOOL CNmcDevice::InitAxisParam(int nAxis)
 	m_pAxis[nAxis]->m_stParam.Home.fEscLen = m_pParamMotion[nAxis].Home.fEscLen;	// Escape length from sensor touch position
 
 	m_pAxis[nAxis]->m_stParam.Speed.fDec = m_pParamAxis[nAxis].fDec;					// Deceleration
-	m_pAxis[nAxis]->m_stParam.Speed.fJogFastSpd = m_pParamAxis[nAxis].fJogFastSpd;		// Speed
-	m_pAxis[nAxis]->m_stParam.Speed.fJogMidSpd = m_pParamAxis[nAxis].fJogMidSpd;		// Speed
-	m_pAxis[nAxis]->m_stParam.Speed.fJogLowSpd = m_pParamAxis[nAxis].fJogLowSpd;		// Speed
-	m_pAxis[nAxis]->m_stParam.Speed.fJogAcc = m_pParamAxis[nAxis].fJogAcc;				// Acceleration
+	m_pAxis[nAxis]->m_stParam.Speed.fJogFastSpd = m_pParamMotion[nAxis].Speed.fJogFastSpd;		// Speed
+	m_pAxis[nAxis]->m_stParam.Speed.fJogMidSpd = m_pParamMotion[nAxis].Speed.fJogMidSpd;		// Speed
+	m_pAxis[nAxis]->m_stParam.Speed.fJogLowSpd = m_pParamMotion[nAxis].Speed.fJogLowSpd;		// Speed
+	m_pAxis[nAxis]->m_stParam.Speed.fJogAcc = m_pParamMotion[nAxis].Speed.fJogAcc;				// Acceleration
 
 	m_pAxis[nAxis]->m_stParam.Io.bPosLimit = m_pParamMotor[nAxis].bPosLimitLevel;	// 정방향 리미트 스위치 신호 레벨
 	m_pAxis[nAxis]->m_stParam.Io.bNegLimit = m_pParamMotor[nAxis].bNegLimitLevel;	// 역방향 리미트 스위치 신호 레벨
@@ -1562,6 +1562,11 @@ double CNmcDevice::Pulse2Len(int nAxisId, long nPulse)
 double CNmcDevice::GetActualPosition(int nAxisId)
 {
 	return m_pAxis[nAxisId]->GetActualPosition();
+}
+
+double CNmcDevice::GetCommandPosition(int nAxisId)
+{
+	return m_pAxis[nAxisId]->GetCommandPosition();
 }
 
 double CNmcDevice::CalSpeedProfile(int nAxisID, double fLength, double &fVel, double &fAcc, double &fDec)

@@ -1,6 +1,6 @@
 #pragma once
 
-//#define USE_NMC
+#define USE_NMC
 
 #include "MotionParam.h"
 #include "MyFileErrMap.h"
@@ -27,7 +27,7 @@ class CEtherCat : public CWnd
 	int		m_nGroupID_Interpolation[2];
 
 #ifdef USE_NMC
-	CNmcDevice *m_pMotionCard;
+	CNmcDevice *m_pNmcDevice;
 #endif
 
 	DWORD m_dwSt, m_dwEd;
@@ -104,6 +104,7 @@ public:
 	//BOOL MovePath(int nMotionId);
 	//BOOL SetErrMap(CMyFileErrMap *pMyFile);
 	double GetActualPosition(int nAxisId);
+	double GetCommandPosition(int nAxisId);
 	BOOL Stop(int nMotionId);
 	BOOL EStop(int nMotionId);
 	BOOL Clear(int nMotionId);
