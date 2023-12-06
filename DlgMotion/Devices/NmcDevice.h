@@ -190,6 +190,10 @@ public:
 	long GetState(int nMotionId);
 
 	BOOL CheckNmcConnection();// TRUE: OK , FALSE: Error
+	BOOL SetPosition(int nAxisID, double fPos);
+	void EnableSwLimit(int nAxisID, BOOL bEnable = TRUE);
+	void EnableHwLimit(int nAxisID, BOOL bEnable = TRUE);
+	void EnableHwHome(int nAxisID, BOOL bEnable = TRUE);
 
 // Overrides
 	// ClassWizard generated virtual function overrides

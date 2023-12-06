@@ -24,6 +24,8 @@ CDlgMotionDlg::CDlgMotionDlg(CWnd* pParent /*=NULL*/)
 	m_bThread[0] = FALSE;
 	m_dwThreadTick[0] = 0;
 	m_bTIM_DISP_ENC = FALSE;
+	m_nCurSelMaster = -1;
+	m_nCurSelSlaver = -1;
 }
 
 CDlgMotionDlg::~CDlgMotionDlg()
@@ -46,6 +48,31 @@ BEGIN_MESSAGE_MAP(CDlgMotionDlg, CDialog)
 	ON_BN_CLICKED(IDC_CHECK2, &CDlgMotionDlg::OnBnClickedCheck2)
 	ON_BN_CLICKED(IDC_CHECK3, &CDlgMotionDlg::OnBnClickedCheck3)
 	ON_BN_CLICKED(IDC_CHECK4, &CDlgMotionDlg::OnBnClickedCheck4)
+	ON_CBN_SELCHANGE(IDC_COMBO1, &CDlgMotionDlg::OnSelchangeCombo1)
+	ON_CBN_SELCHANGE(IDC_COMBO2, &CDlgMotionDlg::OnSelchangeCombo2)
+	ON_BN_CLICKED(IDC_CHECK21, &CDlgMotionDlg::OnBnClickedCheck21)
+	ON_BN_CLICKED(IDC_BUTTON1, &CDlgMotionDlg::OnBnClickedButton1)
+	ON_BN_CLICKED(IDC_BUTTON2, &CDlgMotionDlg::OnBnClickedButton2)
+	ON_BN_CLICKED(IDC_BUTTON3, &CDlgMotionDlg::OnBnClickedButton3)
+	ON_BN_CLICKED(IDC_BUTTON4, &CDlgMotionDlg::OnBnClickedButton4)
+	ON_BN_CLICKED(IDC_BUTTON5, &CDlgMotionDlg::OnBnClickedButton5)
+	ON_BN_CLICKED(IDC_BUTTON6, &CDlgMotionDlg::OnBnClickedButton6)
+	ON_BN_CLICKED(IDC_BUTTON7, &CDlgMotionDlg::OnBnClickedButton7)
+	ON_BN_CLICKED(IDC_BUTTON8, &CDlgMotionDlg::OnBnClickedButton8)
+	ON_BN_CLICKED(IDC_BUTTON9, &CDlgMotionDlg::OnBnClickedButton9)
+	ON_BN_CLICKED(IDC_BUTTON10, &CDlgMotionDlg::OnBnClickedButton10)
+	ON_BN_CLICKED(IDC_BUTTON11, &CDlgMotionDlg::OnBnClickedButton11)
+	ON_BN_CLICKED(IDC_BUTTON12, &CDlgMotionDlg::OnBnClickedButton12)
+	ON_BN_CLICKED(IDC_BUTTON13, &CDlgMotionDlg::OnBnClickedButton13)
+	ON_BN_CLICKED(IDC_BUTTON14, &CDlgMotionDlg::OnBnClickedButton14)
+	ON_BN_CLICKED(IDC_BUTTON15, &CDlgMotionDlg::OnBnClickedButton15)
+	ON_BN_CLICKED(IDC_BUTTON16, &CDlgMotionDlg::OnBnClickedButton16)
+	ON_BN_CLICKED(IDC_BUTTON25, &CDlgMotionDlg::OnBnClickedButton25)
+	ON_BN_CLICKED(IDC_BUTTON26, &CDlgMotionDlg::OnBnClickedButton26)
+	ON_BN_CLICKED(IDC_BUTTON27, &CDlgMotionDlg::OnBnClickedButton27)
+	ON_BN_CLICKED(IDC_BUTTON28, &CDlgMotionDlg::OnBnClickedButton28)
+	ON_MESSAGE(WM_MYBTN_DOWN, OnMyBtnDown)
+	ON_MESSAGE(WM_MYBTN_UP, OnMyBtnUp)
 END_MESSAGE_MAP()
 
 
@@ -64,13 +91,14 @@ BOOL CDlgMotionDlg::OnInitDialog()
 	Init(); // Load MotionParam.ini
 
 	DispMotorType();
+	DispMoveConf();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
 
 // 대화 상자에 최소화 단추를 추가할 경우 아이콘을 그리려면
-//  아래 코드가 필요합니다.  문서/뷰 모델을 사용하는 MFC 응용 프로그램의 경우에는
-//  프레임워크에서 이 작업을 자동으로 수행합니다.
+// 아래 코드가 필요합니다.  문서/뷰 모델을 사용하는 MFC 응용 프로그램의 경우에는
+// 프레임워크에서 이 작업을 자동으로 수행합니다.
 
 void CDlgMotionDlg::OnPaint()
 {
@@ -98,7 +126,7 @@ void CDlgMotionDlg::OnPaint()
 }
 
 // 사용자가 최소화된 창을 끄는 동안에 커서가 표시되도록 시스템에서
-//  이 함수를 호출합니다.
+// 이 함수를 호출합니다.
 HCURSOR CDlgMotionDlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
@@ -118,19 +146,57 @@ void CDlgMotionDlg::Init()
 
 	m_pEtherCat->WriteBit(16, ON);   //MC_ON
 
-	ThreadInit();
+	ThreadInit();	// GetEnc();
 
-	((CButton*)GetDlgItem(IDC_CHECK1))->SetCheck(FALSE);
+	CButton* pCtlChkBtn = NULL;
+
+	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK1);
+	pCtlChkBtn->SetCheck(FALSE);
+	pCtlChkBtn->SetWindowText(_T("OFF"));
 	m_pEtherCat->ServoOnOff(0, FALSE);
-	((CButton*)GetDlgItem(IDC_CHECK2))->SetCheck(FALSE);
+
+	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK2);
+	pCtlChkBtn->SetCheck(FALSE);
+	pCtlChkBtn->SetWindowText(_T("OFF"));
 	m_pEtherCat->ServoOnOff(1, FALSE);
-	((CButton*)GetDlgItem(IDC_CHECK3))->SetCheck(FALSE);
+
+	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK3);
+	pCtlChkBtn->SetCheck(FALSE);
+	pCtlChkBtn->SetWindowText(_T("OFF"));
 	m_pEtherCat->ServoOnOff(2, FALSE);
-	((CButton*)GetDlgItem(IDC_CHECK4))->SetCheck(FALSE);
+
+	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK4);
+	pCtlChkBtn->SetCheck(FALSE);
+	pCtlChkBtn->SetWindowText(_T("OFF"));
 	m_pEtherCat->ServoOnOff(3, FALSE);
 
 	m_bTIM_DISP_ENC = TRUE;
 	SetTimer(TIM_DISP_ENC, 100, NULL);
+
+	InitCombo();
+}
+
+void CDlgMotionDlg::InitBtn()
+{
+	myBtnJogM[0].SubclassDlgItem(IDC_BUTTON17, this);
+	myBtnJogM[0].SetHwnd(this->GetSafeHwnd(), IDC_BUTTON17);
+	myBtnJogP[0].SubclassDlgItem(IDC_BUTTON18, this);
+	myBtnJogP[0].SetHwnd(this->GetSafeHwnd(), IDC_BUTTON18);
+
+	myBtnJogM[1].SubclassDlgItem(IDC_BUTTON19, this);
+	myBtnJogM[1].SetHwnd(this->GetSafeHwnd(), IDC_BUTTON19);
+	myBtnJogP[1].SubclassDlgItem(IDC_BUTTON20, this);
+	myBtnJogP[1].SetHwnd(this->GetSafeHwnd(), IDC_BUTTON20);
+
+	myBtnJogM[2].SubclassDlgItem(IDC_BUTTON21, this);
+	myBtnJogM[2].SetHwnd(this->GetSafeHwnd(), IDC_BUTTON21);
+	myBtnJogP[2].SubclassDlgItem(IDC_BUTTON22, this);
+	myBtnJogP[2].SetHwnd(this->GetSafeHwnd(), IDC_BUTTON22);
+
+	myBtnJogM[3].SubclassDlgItem(IDC_BUTTON23, this);
+	myBtnJogM[3].SetHwnd(this->GetSafeHwnd(), IDC_BUTTON23);
+	myBtnJogP[3].SubclassDlgItem(IDC_BUTTON24, this);
+	myBtnJogP[3].SetHwnd(this->GetSafeHwnd(), IDC_BUTTON24);
 }
 
 void CDlgMotionDlg::Close()
@@ -229,6 +295,9 @@ void CDlgMotionDlg::OnTimer(UINT_PTR nIDEvent)
 
 		DispEnc();
 		DispStatus();
+		DispLimitSens();
+
+		CheckBtnStatus();
 
 		if (m_bTIM_DISP_ENC)
 			SetTimer(TIM_DISP_ENC, 100, NULL);
@@ -239,35 +308,77 @@ void CDlgMotionDlg::OnTimer(UINT_PTR nIDEvent)
 
 void CDlgMotionDlg::DispEnc()
 {
+	if (!m_pEtherCat)
+		return;
+
+	CWnd* pWndCmd = NULL;
+	CWnd* pWndAct = NULL;
 	CString strCmd, strAct;
+
 	for (int i = 0; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
 	{
-		strCmd.Format(_T("%.3f"), m_dEncCmd[i]);
-		strAct.Format(_T("%.3f"), m_dEncAct[i]);
 		switch (i)
 		{
 		case 0:
-			GetDlgItem(IDC_STATIC_COMMAND_AXIS0)->SetWindowText(strCmd);
-			GetDlgItem(IDC_STATIC_ACTUAL_AXIS0)->SetWindowText(strAct);
+			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS0);
+			pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS0);
 			break;
 		case 1:
-			GetDlgItem(IDC_STATIC_COMMAND_AXIS1)->SetWindowText(strCmd);
-			GetDlgItem(IDC_STATIC_ACTUAL_AXIS1)->SetWindowText(strAct);
+			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS1);
+			pWndCmd = GetDlgItem(IDC_STATIC_ACTUAL_AXIS1);
 			break;
 		case 2:
-			GetDlgItem(IDC_STATIC_COMMAND_AXIS2)->SetWindowText(strCmd);
-			GetDlgItem(IDC_STATIC_ACTUAL_AXIS2)->SetWindowText(strAct);
+			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS2);
+			pWndCmd = GetDlgItem(IDC_STATIC_ACTUAL_AXIS2);
 			break;
 		case 3:
-			GetDlgItem(IDC_STATIC_COMMAND_AXIS3)->SetWindowText(strCmd);
-			GetDlgItem(IDC_STATIC_ACTUAL_AXIS3)->SetWindowText(strAct);
+			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS3);
+			pWndCmd = GetDlgItem(IDC_STATIC_ACTUAL_AXIS3);
 			break;
 		}
+
+		strCmd.Format(_T("%.3f"), m_dEncCmd[i]);
+		strAct.Format(_T("%.3f"), m_dEncAct[i]);
+		pWndCmd->SetWindowText(strCmd);
+		pWndAct->SetWindowText(strAct);
+	}
+}
+
+void CDlgMotionDlg::DispLimitSens()
+{
+	if (!m_pEtherCat)
+		return;
+
+	CButton* pCtlChkBtnLimitNeg[4] = { 0 };
+	CButton* pCtlChkBtnLimitHome[4] = { 0 };
+	CButton* pCtlChkBtnLimitPos[4] = { 0 };
+
+	pCtlChkBtnLimitNeg[0] = (CButton*)GetDlgItem(IDC_CHECK9);
+	pCtlChkBtnLimitNeg[1] = (CButton*)GetDlgItem(IDC_CHECK10);
+	pCtlChkBtnLimitNeg[2] = (CButton*)GetDlgItem(IDC_CHECK11);
+	pCtlChkBtnLimitNeg[3] = (CButton*)GetDlgItem(IDC_CHECK12);
+
+	pCtlChkBtnLimitHome[0] = (CButton*)GetDlgItem(IDC_CHECK13);
+	pCtlChkBtnLimitHome[1] = (CButton*)GetDlgItem(IDC_CHECK14);
+	pCtlChkBtnLimitHome[2] = (CButton*)GetDlgItem(IDC_CHECK15);
+	pCtlChkBtnLimitHome[3] = (CButton*)GetDlgItem(IDC_CHECK16);
+
+	pCtlChkBtnLimitPos[0] = (CButton*)GetDlgItem(IDC_CHECK17);
+	pCtlChkBtnLimitPos[1] = (CButton*)GetDlgItem(IDC_CHECK18);
+	pCtlChkBtnLimitPos[2] = (CButton*)GetDlgItem(IDC_CHECK19);
+	pCtlChkBtnLimitPos[3] = (CButton*)GetDlgItem(IDC_CHECK20);
+
+	for (int i = 0; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
+	{
 	}
 }
 
 void CDlgMotionDlg::DispStatus()
 {
+	if (!m_pEtherCat)
+		return;
+
+	CWnd* pWnd = NULL;
 	CString str;
 	for (int i = 0; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
 	{
@@ -305,56 +416,123 @@ void CDlgMotionDlg::DispStatus()
 		switch (i)
 		{
 		case 0:
-			GetDlgItem(IDC_STATIC_STATUS_AXIS0)->SetWindowText(str);
+			pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS0); 
 			break;
 		case 1:
-			GetDlgItem(IDC_STATIC_STATUS_AXIS1)->SetWindowText(str);
+			pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS1);
 			break;
 		case 2:
-			GetDlgItem(IDC_STATIC_STATUS_AXIS2)->SetWindowText(str);
+			pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS2);
 			break;
 		case 3:
-			GetDlgItem(IDC_STATIC_STATUS_AXIS3)->SetWindowText(str);
+			pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS3);
 			break;
 		}
+
+		pWnd->SetWindowText(str);
 	}
 }
 
 void CDlgMotionDlg::DispMotorType()
 {
-	CString str;
+	if (!m_pEtherCat)
+		return;
+
+	CButton* pCtlChkBtn = NULL;
+
 	for (int i = 0; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
 	{
-		BOOL bChk = m_pEtherCat->m_pParamMotor[i].bType;
 		switch (i)
 		{
 		case 0:
-			((CButton*)GetDlgItem(IDC_CHECK5))->SetCheck(bChk);
-			((CButton*)GetDlgItem(IDC_CHECK5))->EnableWindow(FALSE);
+			pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK5);
 			break;
 		case 1:
-			((CButton*)GetDlgItem(IDC_CHECK6))->SetCheck(bChk);
-			((CButton*)GetDlgItem(IDC_CHECK6))->EnableWindow(FALSE);
+			pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK6);
 			break;
 		case 2:
-			((CButton*)GetDlgItem(IDC_CHECK7))->SetCheck(bChk);
-			((CButton*)GetDlgItem(IDC_CHECK7))->EnableWindow(FALSE);
+			pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK7);
 			break;
 		case 3:
-			((CButton*)GetDlgItem(IDC_CHECK8))->SetCheck(bChk);
-			((CButton*)GetDlgItem(IDC_CHECK8))->EnableWindow(FALSE);
+			pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK8);
 			break;
 		}
+
+		BOOL bChk = m_pEtherCat->m_pParamMotor[i].bType;
+
+		pCtlChkBtn->SetCheck(bChk);
+		if (bChk)
+			pCtlChkBtn->SetWindowText(_T("Stepper"));
+		else
+			pCtlChkBtn->SetWindowText(_T("Servo"));
+		pCtlChkBtn->EnableWindow(FALSE);
+	}
+}
+
+void CDlgMotionDlg::DispMoveConf()
+{
+	CWnd* pWnd[16] = { 0 };
+
+	// P2P Speed
+	pWnd[0] = GetDlgItem(IDC_EDIT1);
+	pWnd[1] = GetDlgItem(IDC_EDIT2);
+	pWnd[2] = GetDlgItem(IDC_EDIT3);
+	pWnd[3] = GetDlgItem(IDC_EDIT4);
+
+	// Jog Speed
+	pWnd[4] = GetDlgItem(IDC_EDIT13);
+	pWnd[5] = GetDlgItem(IDC_EDIT14);
+	pWnd[6] = GetDlgItem(IDC_EDIT15);
+	pWnd[7] = GetDlgItem(IDC_EDIT16);
+
+	// Acceleration
+	pWnd[8] = GetDlgItem(IDC_EDIT5);
+	pWnd[9] = GetDlgItem(IDC_EDIT6);
+	pWnd[10] = GetDlgItem(IDC_EDIT7);
+	pWnd[11] = GetDlgItem(IDC_EDIT8);
+
+	// Deceleration
+	pWnd[12] = GetDlgItem(IDC_EDIT9);
+	pWnd[13] = GetDlgItem(IDC_EDIT10);
+	pWnd[14] = GetDlgItem(IDC_EDIT11);
+	pWnd[15] = GetDlgItem(IDC_EDIT12);
+
+	CString sVal;
+	for (int nID = 0; nID < m_pEtherCat->m_ParamCtrl.nTotMotion; nID++)
+	{
+		// P2P Speed
+		sVal.Format(_T("%.3f"), m_pEtherCat->m_pParamMotion[nID].Speed.fSpd);
+		pWnd[nID]->SetWindowText(sVal);
+
+		// Jog Speed
+		sVal.Format(_T("%.3f"), m_pEtherCat->m_pParamMotion[nID].Speed.fJogMidSpd);
+		pWnd[nID + 4]->SetWindowText(sVal);
+
+		// Acceleration
+		sVal.Format(_T("%.3f"), m_pEtherCat->m_pParamMotion[nID].Speed.fAcc);
+		pWnd[nID + 8]->SetWindowText(sVal);
+
+		// Deceleration
+		sVal.Format(_T("%.3f"), m_pEtherCat->m_pParamMotion[nID].Speed.fDec);
+		pWnd[nID + 12]->SetWindowText(sVal);
 	}
 }
 
 void CDlgMotionDlg::OnBnClickedCheck1()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK1);
 	if (m_pEtherCat->m_ParamCtrl.nTotAxis > 0)
 	{
-		BOOL bChk = ((CButton*)GetDlgItem(IDC_CHECK1))->GetCheck();
+		BOOL bChk = pCtlChkBtn->GetCheck();
 		m_pEtherCat->ServoOnOff(0, bChk);
+		if (bChk)
+			pCtlChkBtn->SetWindowText(_T("ON"));
+		else
+			pCtlChkBtn->SetWindowText(_T("OFF"));
 	}
 }
 
@@ -362,10 +540,18 @@ void CDlgMotionDlg::OnBnClickedCheck1()
 void CDlgMotionDlg::OnBnClickedCheck2()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK2);
 	if (m_pEtherCat->m_ParamCtrl.nTotAxis > 1)
 	{
-		BOOL bChk = ((CButton*)GetDlgItem(IDC_CHECK2))->GetCheck();
+		BOOL bChk = pCtlChkBtn->GetCheck();
 		m_pEtherCat->ServoOnOff(1, bChk);
+		if (bChk)
+			pCtlChkBtn->SetWindowText(_T("ON"));
+		else
+			pCtlChkBtn->SetWindowText(_T("OFF"));
 	}
 }
 
@@ -373,10 +559,18 @@ void CDlgMotionDlg::OnBnClickedCheck2()
 void CDlgMotionDlg::OnBnClickedCheck3()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK3);
 	if (m_pEtherCat->m_ParamCtrl.nTotAxis > 2)
 	{
-		BOOL bChk = ((CButton*)GetDlgItem(IDC_CHECK3))->GetCheck();
+		BOOL bChk = pCtlChkBtn->GetCheck();
 		m_pEtherCat->ServoOnOff(2, bChk);
+		if (bChk)
+			pCtlChkBtn->SetWindowText(_T("ON"));
+		else
+			pCtlChkBtn->SetWindowText(_T("OFF"));
 	}
 }
 
@@ -384,9 +578,655 @@ void CDlgMotionDlg::OnBnClickedCheck3()
 void CDlgMotionDlg::OnBnClickedCheck4()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK4);
 	if (m_pEtherCat->m_ParamCtrl.nTotAxis > 3)
 	{
-		BOOL bChk = ((CButton*)GetDlgItem(IDC_CHECK4))->GetCheck();
+		BOOL bChk = pCtlChkBtn->GetCheck();
 		m_pEtherCat->ServoOnOff(3, bChk);
+		if (bChk)
+			pCtlChkBtn->SetWindowText(_T("ON"));
+		else
+			pCtlChkBtn->SetWindowText(_T("OFF"));
+	}
+}
+
+void CDlgMotionDlg::InitCombo()
+{
+	if (!m_pEtherCat)
+		return;
+
+	int nID = 0;
+
+	CComboBox* pCtlComboMaster = (CComboBox*)GetDlgItem(IDC_COMBO1);
+	CComboBox* pCtlComboSlaver = (CComboBox*)GetDlgItem(IDC_COMBO2);
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK21);
+
+	pCtlComboMaster->ResetContent();
+	pCtlComboSlaver->ResetContent();
+
+	for (nID = 0; nID < MAX_AXIS; nID++)
+	{
+		pCtlComboMaster->InsertString(nID, m_pEtherCat->m_pParamAxis[nID].sName);
+	}
+
+	pCtlComboSlaver->EnableWindow(FALSE);
+	pCtlChkBtn->EnableWindow(FALSE);
+}
+
+void CDlgMotionDlg::OnSelchangeCombo1()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	int nID = 0;
+
+	CComboBox* pCtlComboMaster = (CComboBox*)GetDlgItem(IDC_COMBO1);
+	CComboBox* pCtlComboSlaver = (CComboBox*)GetDlgItem(IDC_COMBO2);
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK21);
+
+	int nIndex = m_nCurSelMaster = pCtlComboMaster->GetCurSel();
+
+	if (nIndex == LB_ERR)
+		return;
+
+	if(!pCtlComboSlaver->IsWindowEnabled())
+		pCtlComboSlaver->EnableWindow(TRUE);
+
+	int nCount = pCtlComboSlaver->GetCount();
+	if(nCount > 0)
+		pCtlComboSlaver->ResetContent();
+
+	for (nID = 0; nID < MAX_AXIS; nID++)
+	{
+		if (nID != nIndex)
+		{
+			if (m_pEtherCat)
+				pCtlComboSlaver->InsertString(nID, m_pEtherCat->m_pParamAxis[nID].sName);
+		}
+	}
+
+	pCtlComboSlaver->SetWindowText(_T(""));
+	m_nCurSelSlaver = -1;
+	pCtlChkBtn->EnableWindow(FALSE);
+}
+
+
+void CDlgMotionDlg::OnSelchangeCombo2()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	int nID = 0;
+	CString sSelName = _T("");
+
+	CComboBox* pCtlComboSlaver = (CComboBox*)GetDlgItem(IDC_COMBO2);
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK21);
+
+	int nIndex = pCtlComboSlaver->GetCurSel();
+	pCtlComboSlaver->GetLBText(nIndex, sSelName);
+
+	for (nID = 0; nID < MAX_AXIS; nID++)
+	{
+		if (GetMotorName(nID) == sSelName)
+		{
+			m_nCurSelSlaver = nID;
+			pCtlChkBtn->EnableWindow(TRUE);
+			break;
+		}
+	}
+}
+
+
+void CDlgMotionDlg::OnBnClickedCheck21()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	if (m_nCurSelMaster < 0 || m_nCurSelSlaver < 0)
+	{
+		if (m_nCurSelMaster < 0 && m_nCurSelSlaver > -1)
+			AfxMessageBox(_T("Select Master in ComboBox."));
+		else if (m_nCurSelMaster > -1 && m_nCurSelSlaver < 0)
+			AfxMessageBox(_T("Select Slaver in ComboBox."));
+		else
+			AfxMessageBox(_T("Select Master && Slaver in ComboBox."));
+		return;
+	}
+
+	long lOnOff;
+	CString strMsg;
+
+	BOOL bServoOn[2] = { 0 };
+	bServoOn[0] = m_pEtherCat->IsServoOn(m_nCurSelMaster);
+	bServoOn[1] = m_pEtherCat->IsServoOn(m_nCurSelSlaver);
+
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK21);
+
+	BOOL bOn = pCtlChkBtn->GetCheck();
+	if (bOn)
+	{
+		if (bServoOn[0] && bServoOn[1])
+		{
+			if (!m_pEtherCat->GetGantry(m_nCurSelMaster, m_nCurSelSlaver, &lOnOff))
+			{
+				pCtlChkBtn->SetCheck(FALSE);
+				strMsg.Format(_T("Failed Gantry Get. - %s axis(master) and %s axis(slaver)."), GetMotorName(m_nCurSelMaster), GetMotorName(m_nCurSelSlaver));
+				AfxMessageBox(strMsg);
+				return;
+			}
+
+			if (!lOnOff)
+			{
+				if (!m_pEtherCat->SetGantry(m_nCurSelMaster, m_nCurSelSlaver, TRUE))
+				{
+					pCtlChkBtn->SetCheck(FALSE);
+					strMsg.Format(_T("Failed Gantry Set. - %s axis(master) and %s axis(slaver)."), GetMotorName(m_nCurSelMaster), GetMotorName(m_nCurSelSlaver));
+					AfxMessageBox(strMsg);
+					return;
+				}
+			}
+
+			if (!m_pEtherCat->GetGantry(m_nCurSelMaster, m_nCurSelSlaver, &lOnOff))
+			{
+				pCtlChkBtn->SetCheck(FALSE);
+				strMsg.Format(_T("Failed Gantry Get. - %s axis(master) and %s axis(slaver)."), GetMotorName(m_nCurSelMaster), GetMotorName(m_nCurSelSlaver));
+				AfxMessageBox(strMsg);
+				return;
+			}
+
+			if (!lOnOff)
+			{
+				pCtlChkBtn->SetCheck(FALSE);
+				strMsg.Format(_T("Failed Gantry Set. - %s axis(master) and %s axis(slaver)."), GetMotorName(m_nCurSelMaster), GetMotorName(m_nCurSelSlaver));
+				AfxMessageBox(strMsg);
+				return;
+			}
+
+			strMsg.Format(_T("Succeed Gantry Set. - %s axis(master) and %s axis(slaver)."), GetMotorName(m_nCurSelMaster), GetMotorName(m_nCurSelSlaver));
+			AfxMessageBox(strMsg);
+			return;
+		}
+		else
+		{
+			pCtlChkBtn->SetCheck(FALSE);
+
+			if (!bServoOn[0] && bServoOn[1])
+				AfxMessageBox(_T("Master servo is disabled."));
+			else if (bServoOn[0] && !bServoOn[1])
+				AfxMessageBox(_T("Slaver servo is disabled."));
+			else
+				AfxMessageBox(_T("Master && Slaver servos are disabled."));
+			return;
+		}
+	}
+	else
+	{
+		if (!m_pEtherCat->GetGantry(m_nCurSelMaster, m_nCurSelSlaver, &lOnOff))
+		{
+			pCtlChkBtn->SetCheck(TRUE);
+			strMsg.Format(_T("Failed Gantry Get. - %s axis(master) and %s axis(slaver)."), GetMotorName(m_nCurSelMaster), GetMotorName(m_nCurSelSlaver));
+			AfxMessageBox(strMsg);
+			return;
+		}
+
+		if (lOnOff)
+		{
+			if (!m_pEtherCat->SetGantry(m_nCurSelMaster, m_nCurSelSlaver, FALSE))
+			{
+				pCtlChkBtn->SetCheck(TRUE);
+				strMsg.Format(_T("Failed Gantry Reset. - %s axis(master) and %s axis(slaver)."), GetMotorName(m_nCurSelMaster), GetMotorName(m_nCurSelSlaver));
+				AfxMessageBox(strMsg);
+				return;
+			}
+
+			strMsg.Format(_T("Succeed Gantry Reset. - %s axis(master) and %s axis(slaver)."), GetMotorName(m_nCurSelMaster), GetMotorName(m_nCurSelSlaver));
+			AfxMessageBox(strMsg);
+			return;
+		}
+		else
+		{
+			strMsg.Format(_T("Gantry was already disabled."));
+			AfxMessageBox(strMsg);
+			return;
+		}
+	}
+}
+
+CString CDlgMotionDlg::GetMotorName(int nID)
+{
+	if (!m_pEtherCat)
+		return _T("");
+
+	return m_pEtherCat->m_pParamAxis[nID].sName;
+}
+
+void CDlgMotionDlg::OnBnClickedButton1()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	m_pEtherCat->Clear(0);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton2()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	m_pEtherCat->Clear(1);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton3()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	m_pEtherCat->Clear(2);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton4()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	m_pEtherCat->Clear(3);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton5()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	m_pEtherCat->SetPosition(0, 0.0);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton6()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	m_pEtherCat->SetPosition(1, 0.0);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton7()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	m_pEtherCat->SetPosition(2, 0.0);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton8()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	m_pEtherCat->SetPosition(3, 0.0);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton9()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	// Move Pos1
+	CWnd* pWndPos1 = GetDlgItem(IDC_EDIT17);
+	CWnd* pWndSpd = GetDlgItem(IDC_EDIT1);
+	CWnd* pWndAcc = GetDlgItem(IDC_EDIT5);
+	CWnd* pWndDec = GetDlgItem(IDC_EDIT9);
+
+	Move(0, pWndPos1, pWndSpd, pWndAcc, pWndDec);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton10()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	// Move Pos1
+	CWnd* pWndPos1 = GetDlgItem(IDC_EDIT18);
+	CWnd* pWndSpd = GetDlgItem(IDC_EDIT2);
+	CWnd* pWndAcc = GetDlgItem(IDC_EDIT6);
+	CWnd* pWndDec = GetDlgItem(IDC_EDIT10);
+
+	Move(1, pWndPos1, pWndSpd, pWndAcc, pWndDec);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton11()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	// Move Pos1
+	CWnd* pWndPos1 = GetDlgItem(IDC_EDIT19);
+	CWnd* pWndSpd = GetDlgItem(IDC_EDIT3);
+	CWnd* pWndAcc = GetDlgItem(IDC_EDIT7);
+	CWnd* pWndDec = GetDlgItem(IDC_EDIT11);
+
+	Move(2, pWndPos1, pWndSpd, pWndAcc, pWndDec);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton12()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	// Move Pos1
+	CWnd* pWndPos1 = GetDlgItem(IDC_EDIT20);
+	CWnd* pWndSpd = GetDlgItem(IDC_EDIT4);
+	CWnd* pWndAcc = GetDlgItem(IDC_EDIT8);
+	CWnd* pWndDec = GetDlgItem(IDC_EDIT12);
+
+	Move(3, pWndPos1, pWndSpd, pWndAcc, pWndDec);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton13()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	// Move Pos2
+	CWnd* pWndPos2 = GetDlgItem(IDC_EDIT21);
+	CWnd* pWndSpd = GetDlgItem(IDC_EDIT1);
+	CWnd* pWndAcc = GetDlgItem(IDC_EDIT5);
+	CWnd* pWndDec = GetDlgItem(IDC_EDIT9);
+
+	Move(0, pWndPos2, pWndSpd, pWndAcc, pWndDec);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton14()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	// Move Pos2
+	CWnd* pWndPos2 = GetDlgItem(IDC_EDIT22);
+	CWnd* pWndSpd = GetDlgItem(IDC_EDIT2);
+	CWnd* pWndAcc = GetDlgItem(IDC_EDIT6);
+	CWnd* pWndDec = GetDlgItem(IDC_EDIT10);
+
+	Move(1, pWndPos2, pWndSpd, pWndAcc, pWndDec);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton15()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	// Move Pos2
+	CWnd* pWndPos2 = GetDlgItem(IDC_EDIT23);
+	CWnd* pWndSpd = GetDlgItem(IDC_EDIT3);
+	CWnd* pWndAcc = GetDlgItem(IDC_EDIT7);
+	CWnd* pWndDec = GetDlgItem(IDC_EDIT11);
+
+	Move(2, pWndPos2, pWndSpd, pWndAcc, pWndDec);
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton16()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	// Move Pos2
+	CWnd* pWndPos2 = GetDlgItem(IDC_EDIT24);
+	CWnd* pWndSpd = GetDlgItem(IDC_EDIT4);
+	CWnd* pWndAcc = GetDlgItem(IDC_EDIT8);
+	CWnd* pWndDec = GetDlgItem(IDC_EDIT12);
+
+	Move(3, pWndPos2, pWndSpd, pWndAcc, pWndDec);
+}
+
+BOOL CDlgMotionDlg::Move(int nID, CWnd* pWndTgtPos, CWnd* pWndSpd, CWnd* pWndAcc, CWnd* pWndDec)
+{
+	if (!m_pEtherCat)
+	{
+		AfxMessageBox(_T("m_pEtherCat is NULL."));
+		return FALSE;
+	}
+
+	CString sPos, sSpd, sAcc, sDec, sMsg;
+
+	pWndTgtPos->GetWindowText(sPos);
+	pWndSpd->GetWindowText(sSpd);
+	pWndAcc->GetWindowText(sAcc);
+	pWndDec->GetWindowText(sDec);
+
+	if (sPos.IsEmpty() || sSpd.IsEmpty() || sAcc.IsEmpty() || sDec.IsEmpty())
+	{
+		AfxMessageBox(_T("Move Parmeter is empty."));
+		return FALSE;
+	}
+
+	double dTgtPos = _tstof(sPos);
+	double dSpd = _tstof(sSpd);
+	double dAcc = _tstof(sAcc);
+	double dDec = _tstof(sDec);
+
+	if (!m_pEtherCat->Move(nID, dTgtPos, dSpd, dAcc, dDec))
+	{
+		sMsg.Format(_T("Error Move. - %s ."), GetMotorName(nID));
+		AfxMessageBox(sMsg);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+LRESULT CDlgMotionDlg::OnMyBtnDown(WPARAM wPara, LPARAM lPara)
+{
+	int nCtrlID = (int)lPara;
+	SwMyBtnDown(nCtrlID);
+
+	return 0L;
+}
+
+LRESULT CDlgMotionDlg::OnMyBtnUp(WPARAM wPara, LPARAM lPara)
+{
+	int nCtrlID = (int)lPara;
+	SwMyBtnUp(nCtrlID);
+	return 0L;
+}
+
+void CDlgMotionDlg::SwMyBtnDown(int nCtrlID)
+{
+	if (!m_pEtherCat)
+		return;
+
+	switch (nCtrlID)
+	{
+	case IDC_BUTTON17: // Jog -
+		m_pEtherCat->VMove(0, M_CCW);
+		break;
+	case IDC_BUTTON18: // Jog +
+		m_pEtherCat->VMove(0, M_CW);
+		break;
+	case IDC_BUTTON19: // Jog -
+		m_pEtherCat->VMove(1, M_CCW);
+		break;
+	case IDC_BUTTON20: // Jog +
+		m_pEtherCat->VMove(1, M_CW);
+		break;
+	case IDC_BUTTON21: // Jog -
+		m_pEtherCat->VMove(2, M_CCW);
+		break;
+	case IDC_BUTTON22: // Jog +
+		m_pEtherCat->VMove(2, M_CW);
+		break;
+	case IDC_BUTTON23: // Jog -
+		m_pEtherCat->VMove(3, M_CCW);
+		break;
+	case IDC_BUTTON24: // Jog +
+		m_pEtherCat->VMove(3, M_CW);
+		break;
+	}
+}
+
+void CDlgMotionDlg::SwMyBtnUp(int nCtrlID)
+{
+	if (!m_pEtherCat)
+		return;
+
+	switch (nCtrlID)
+	{
+	case IDC_BUTTON17: // Jog -
+		m_pEtherCat->EStop(0);
+		ResetMotion(0);
+		break;
+	case IDC_BUTTON18: // Jog +
+		m_pEtherCat->EStop(0);
+		ResetMotion(0);
+		break;
+	case IDC_BUTTON19: // Jog -
+		m_pEtherCat->EStop(1);
+		ResetMotion(1);
+		break;
+	case IDC_BUTTON20: // Jog +
+		m_pEtherCat->EStop(1);
+		ResetMotion(1);
+		break;
+	case IDC_BUTTON21: // Jog -
+		m_pEtherCat->EStop(2);
+		ResetMotion(2);
+		break;
+	case IDC_BUTTON22: // Jog +
+		m_pEtherCat->EStop(2);
+		ResetMotion(2);
+		break;
+	case IDC_BUTTON23: // Jog -
+		m_pEtherCat->EStop(3);
+		ResetMotion(3);
+		break;
+	case IDC_BUTTON24: // Jog +
+		m_pEtherCat->EStop(3);
+		ResetMotion(3);
+		break;
+	}
+}
+
+void CDlgMotionDlg::ResetMotion(int nMsId)
+{
+	if (!m_pEtherCat)
+		return;
+
+	long lRtn = m_pEtherCat->GetState(nMsId);  // -1 : MPIStateERROR, 0 : MPIStateIDLE, 1 : MPIStateSTOPPING, 2 : MPIStateMOVING
+	if (lRtn == 2)
+	{
+		m_pEtherCat->Abort(nMsId);
+		Sleep(30);
+	}
+
+	m_pEtherCat->Clear(nMsId);
+	Sleep(30);
+
+	if (!m_pEtherCat->IsEnable(nMsId))
+	{
+		m_pEtherCat->ServoOnOff(nMsId, TRUE);
+		Sleep(30);
+	}
+}
+
+void CDlgMotionDlg::CheckBtnStatus()
+{
+	if (!m_pEtherCat)
+		return;
+
+	CButton* pBtnHome[4] = { 0 };
+	pBtnHome[0] = (CButton*)GetDlgItem(IDC_BUTTON25);
+	pBtnHome[1] = (CButton*)GetDlgItem(IDC_BUTTON26);
+	pBtnHome[2] = (CButton*)GetDlgItem(IDC_BUTTON27);
+	pBtnHome[3] = (CButton*)GetDlgItem(IDC_BUTTON28);
+
+	for (int nID = 0; nID < MAX_AXIS; nID++)
+	{
+		if (m_pEtherCat->IsHomeDone(nID))
+		{
+			pBtnHome[nID]->EnableWindow(TRUE);
+		}
+		else
+		{
+			pBtnHome[nID]->EnableWindow(FALSE);
+		}
+	}
+}
+
+void CDlgMotionDlg::OnBnClickedButton25()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	CString sMsg;
+
+	// Homming
+	if(m_pEtherCat->IsHomeDone(0))
+		m_pEtherCat->SearchHomePos(0);
+	else
+	{
+		sMsg.Format(_T("%s is homming now."), GetMotorName(0));
+		AfxMessageBox(sMsg);
+	}
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton26()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	CString sMsg;
+
+	// Homming
+	if (m_pEtherCat->IsHomeDone(1))
+		m_pEtherCat->SearchHomePos(1);
+	else
+	{
+		sMsg.Format(_T("%s is homming now."), GetMotorName(1));
+		AfxMessageBox(sMsg);
+	}
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton27()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	CString sMsg;
+
+	// Homming
+	if (m_pEtherCat->IsHomeDone(2))
+		m_pEtherCat->SearchHomePos(2);
+	else
+	{
+		sMsg.Format(_T("%s is homming now."), GetMotorName(2));
+		AfxMessageBox(sMsg);
+	}
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton28()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	CString sMsg;
+
+	// Homming
+	if (m_pEtherCat->IsHomeDone(3))
+		m_pEtherCat->SearchHomePos(3);
+	else
+	{
+		sMsg.Format(_T("%s is homming now."), GetMotorName(3));
+		AfxMessageBox(sMsg);
 	}
 }

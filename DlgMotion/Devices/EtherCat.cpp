@@ -74,6 +74,12 @@ CEtherCat::CEtherCat(CWnd* pParent)
 	m_dMarkOffsetY = 0.0;
 	m_bMarkOffset = FALSE;
 
+	m_bUseGantry = FALSE;
+	m_lGantryMaster = -1;
+	m_lGantrylSlave = -1;
+	m_lGantryEnable = -1;
+	m_bGantryEnabled = FALSE;
+
 
 	for (i = 0; i < 32; i++)
 		m_bDO[i] = FALSE;
@@ -1135,7 +1141,47 @@ BOOL CEtherCat::InitNmcBoard()
 		//WriteData(0x01 << DO_MC);
 		//Sleep(100);
 		m_pNmcDevice->RestoreSwEmergency();	// -1: Fault , 1: Emergency Signal Off complete, 2: Previous Emergency Signal Off-state, 3: Normal
+
+		EnableSwLimit(FALSE);
+		EnableHwLimit(TRUE);
+		EnableHwLimit(FALSE);
 	}
+
+	/*
+	long lOnOff, val;
+	CString strMsg;
+	if(!GetGantry(SCAN_AXIS, SCAN_S_AXIS, &lOnOff))
+	{
+	strMsg.Format(_T("[MSG94] Failed Gantry Get. - %s axis(master) and %s axis(slaver)."),GetMotorName(SCAN_AXIS), GetMotorName(SCAN_S_AXIS));
+	AfxMessageBox(strMsg);
+	return FALSE;
+	}
+
+	if(!lOnOff) // Gantry Mode
+	{
+	if(!SetGantry(SCAN_AXIS, SCAN_S_AXIS, TRUE))
+	{
+	strMsg.Format(_T("[MSG94] Failed Gantry Set. - %s axis(master) and %s axis(slaver)."),GetMotorName(SCAN_AXIS), GetMotorName(SCAN_S_AXIS));
+	AfxMessageBox(strMsg);
+	return FALSE;
+	}
+	}
+
+	if(!GetGantry(SCAN_AXIS, SCAN_S_AXIS, &lOnOff))
+	{
+	strMsg.Format(_T("[MSG94] Failed Gantry Get. - %s axis(master) and %s axis(slaver)."),GetMotorName(SCAN_AXIS), GetMotorName(SCAN_S_AXIS));
+	AfxMessageBox(strMsg);
+	return FALSE;
+	}
+
+	if(!lOnOff) // Gantry Mode
+	{
+	strMsg.Format(_T("[MSG94] Failed Gantry Set. - %s axis(master) and %s axis(slaver)."),GetMotorName(SCAN_AXIS), GetMotorName(SCAN_S_AXIS));
+	AfxMessageBox(strMsg);
+	return FALSE;
+	}
+
+	*/
 #endif
 	return TRUE;
 }
@@ -1617,4 +1663,75 @@ BOOL CEtherCat::MotionAbort(int nMsId)
 		return FALSE;
 
 	return Abort(nMsId);
+}
+
+BOOL CEtherCat::GetGantry(long lMaster, long lSlave, long *lOnOff)
+{
+	if (lMaster >= MAX_AXIS || lSlave >= MAX_AXIS)
+		return FALSE;
+
+	if (!m_bGantryEnabled && m_bUseGantry && m_lGantryEnable)
+	{
+		*lOnOff = TRUE;
+		return TRUE;
+	}
+
+#ifdef USE_NMC
+	return m_pNmcDevice->GetGantry(lMaster, lSlave, lOnOff);
+#endif
+	return TRUE;
+}
+
+BOOL CEtherCat::SetGantry(long lMaster, long lSlave, long lOnOff)
+{
+	if (lMaster >= MAX_AXIS || lSlave >= MAX_AXIS)
+		return FALSE;
+
+	m_bUseGantry = TRUE;
+	m_lGantryMaster = lMaster;
+	m_lGantrylSlave = lSlave;
+	m_lGantryEnable = lOnOff;
+
+#ifdef USE_NMC
+	return m_pNmcDevice->SetGantry(lMaster, lSlave, lOnOff);
+#endif
+	return TRUE;
+}
+
+BOOL CEtherCat::SetPosition(int nAxisID, double fPos)
+{
+#ifdef USE_NMC
+	return m_pNmcDevice->SetPosition(nAxisID, fPos);
+#endif
+	return TRUE;
+}
+
+void CEtherCat::EnableSwLimit(BOOL bEnable)
+{
+	for (int nAxisId = 0; nAxisId < m_ParamCtrl.nTotAxis; nAxisId++)
+	{
+#ifdef USE_NMC
+		m_pNmcDevice->EnableSwLimit(nAxisId, bEnable);
+#endif
+	}
+}
+
+void CEtherCat::EnableHwLimit(BOOL bEnable)
+{
+	for (int nAxisId = 0; nAxisId < m_ParamCtrl.nTotAxis; nAxisId++)
+	{
+#ifdef USE_NMC
+		m_pNmcDevice->EnableHwLimit(nAxisId, bEnable);
+#endif
+	}
+}
+
+void CEtherCat::EnableHwHome(BOOL bEnable)
+{
+	for (int nAxisId = 0; nAxisId < m_ParamCtrl.nTotAxis; nAxisId++)
+	{
+#ifdef USE_NMC
+		m_pNmcDevice->EnableHwHome(nAxisId, bEnable);
+#endif
+	}
 }

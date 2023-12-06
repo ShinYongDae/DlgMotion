@@ -3169,6 +3169,26 @@ BOOL CNmcDevice::CheckNmcConnection() // TRUE: OK , FALSE: Error
 	return TRUE;
 }
 
+BOOL CNmcDevice::SetPosition(int nAxisID, double fPos)
+{
+	return GetAxis(nAxisID)->SetPosition(fPos);
+}
+
+void CNmcDevice::EnableSwLimit(int nAxisID, BOOL bEnable)
+{
+
+}
+
+void CNmcDevice::EnableHwLimit(int nAxisID, BOOL bEnable)
+{
+
+}
+
+void CNmcDevice::EnableHwHome(int nAxisID, BOOL bEnable)
+{
+
+}
+
 //void CNmcDevice::SaveLog(CString strMsg)
 //{
 //	CSafeLock lock(&m_csLogLock);

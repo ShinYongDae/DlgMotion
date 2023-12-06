@@ -63,6 +63,9 @@
     <ClInclude Include="Devices\ThreadTask.h">
       <Filter>Devices</Filter>
     </ClInclude>
+    <ClInclude Include="MyBtn.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DlgMotion.cpp">
@@ -91,6 +94,9 @@
     </ClCompile>
     <ClCompile Include="Devices\ThreadTask.cpp">
       <Filter>Devices</Filter>
+    </ClCompile>
+    <ClCompile Include="MyBtn.cpp">
+      <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

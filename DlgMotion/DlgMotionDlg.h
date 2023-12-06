@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Devices/EtherCat.h"
+#include "MyBtn.h"
 
 #define MAX_THREAD				1
 #define TIM_DISP_ENC			0
@@ -19,8 +20,11 @@ class CDlgMotionDlg : public CDialog
 	double m_dEncAct[MAX_AXIS], m_dEncCmd[MAX_AXIS];
 	int m_nStatus[MAX_AXIS];
 	BOOL m_bTIM_DISP_ENC;
+	int m_nCurSelMaster, m_nCurSelSlaver;
+	CMyBtn myBtnJogP[4], myBtnJogM[4];
 
 	void Init();
+	void InitBtn();
 	void Close();
 
 	void ThreadInit();
@@ -29,6 +33,15 @@ class CDlgMotionDlg : public CDialog
 	void DispEnc();
 	void DispStatus();
 	void DispMotorType();
+	void DispMoveConf();
+	void DispLimitSens();
+
+	void CheckBtnStatus();
+
+	void InitCombo();
+	CString GetMotorName(int nID);
+
+	BOOL Move(int nID, CWnd* pWndTgtPos, CWnd* pWndSpd, CWnd* pWndAcc, CWnd* pWndDec);
 
 // 생성입니다.
 public:
@@ -40,6 +53,10 @@ public:
 	CThreadTask m_Thread[MAX_THREAD];
 	static UINT ThreadProc0(LPVOID lpContext);
 	void GetEnc();
+
+	void SwMyBtnDown(int nCtrlID);
+	void SwMyBtnUp(int nCtrlID);
+	void ResetMotion(int nMsId);
 
 // 대화 상자 데이터입니다.
 #ifdef AFX_DESIGN_TIME
@@ -67,4 +84,30 @@ public:
 	afx_msg void OnBnClickedCheck2();
 	afx_msg void OnBnClickedCheck3();
 	afx_msg void OnBnClickedCheck4();
+	afx_msg void OnSelchangeCombo1();
+	afx_msg void OnSelchangeCombo2();
+	afx_msg void OnBnClickedCheck21();
+	afx_msg void OnBnClickedButton1();
+	afx_msg void OnBnClickedButton2();
+	afx_msg void OnBnClickedButton3();
+	afx_msg void OnBnClickedButton4();
+	afx_msg void OnBnClickedButton5();
+	afx_msg void OnBnClickedButton6();
+	afx_msg void OnBnClickedButton7();
+	afx_msg void OnBnClickedButton8();
+	afx_msg void OnBnClickedButton9();
+	afx_msg void OnBnClickedButton10();
+	afx_msg void OnBnClickedButton11();
+	afx_msg void OnBnClickedButton12();
+	afx_msg void OnBnClickedButton13();
+	afx_msg void OnBnClickedButton14();
+	afx_msg void OnBnClickedButton15();
+	afx_msg void OnBnClickedButton16();
+	afx_msg void OnBnClickedButton25();
+	afx_msg void OnBnClickedButton26();
+	afx_msg void OnBnClickedButton27();
+	afx_msg void OnBnClickedButton28();
+
+	afx_msg LRESULT OnMyBtnDown(WPARAM wPara, LPARAM lPara);
+	afx_msg LRESULT OnMyBtnUp(WPARAM wPara, LPARAM lPara);
 };

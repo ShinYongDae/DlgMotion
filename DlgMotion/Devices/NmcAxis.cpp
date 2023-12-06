@@ -1401,6 +1401,33 @@ void CNmcAxis::EnableSwLimit(BOOL bEnable)
 	Sleep(10);
 }
 
+void CNmcAxis::EnableHwLimit(BOOL bEnable)
+{
+	if (!bEnable)
+	{
+		SetNegHWLimitAction(NO_EVENT);
+		SetPosHWLimitAction(NO_EVENT);
+	}
+	else
+	{
+		SetNegHWLimitAction(E_STOP_EVENT);
+		SetPosHWLimitAction(E_STOP_EVENT);
+	}
+}
+
+void CNmcAxis::EnableHwHome(BOOL bEnable)
+{
+	if (!bEnable)
+	{
+		SetHomeAction(NO_EVENT);
+	}
+	else
+	{
+		SetHomeAction(E_STOP_EVENT);
+	}
+
+}
+
 BOOL CNmcAxis::CheckEmgSwitch()
 {
 	//return ((CNmcDevice*)m_pParent)->ReadIn(EMERGENCY_SWITCH);
@@ -1485,6 +1512,7 @@ BOOL CNmcAxis::ChkMotionAlarmCall(LPVOID lpContext)
 // Home thread body
 
 UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
+
 {
 	// Turn the passed in 'this' pointer back into a CProgressMgr instance
 	CNmcAxis* pThread = reinterpret_cast< CNmcAxis* >(lpContext);

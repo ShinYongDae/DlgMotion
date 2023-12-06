@@ -249,6 +249,8 @@ public:
 	BOOL SetHomeAction(INT nAction);
 	void SetOriginStatus(BOOL bStatus = FALSE);
 	void EnableSwLimit(BOOL bEnable = TRUE);
+	void EnableHwLimit(BOOL bEnable = TRUE);
+	void EnableHwHome(BOOL bEnable = TRUE);
 	int CmdBufferClear();
 	double PulseToLen(double fData);
 	double GetInposition();

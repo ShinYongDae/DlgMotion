@@ -33,6 +33,13 @@ class CEtherCat : public CWnd
 	DWORD m_dwSt, m_dwEd;
 	double m_dStMsLsrOffsetX, m_dStMsLsrOffsetY, m_dEdMsLsrOffsetX, m_dEdMsLsrOffsetY;
 
+	BOOL m_bUseGantry;
+	long m_lGantryMaster;
+	long m_lGantrylSlave;
+	long m_lGantryEnable;
+	BOOL m_bGantryEnabled;
+
+
 	void FreeAll();
 	void LoadParam();
 	BOOL LoadErrMapFile(CString sPath);
@@ -128,6 +135,13 @@ public:
 	unsigned long ReadAllBit(BOOL bInput);
 	void MotionAbortAll();
 	BOOL MotionAbort(int nMsId);
+
+	BOOL GetGantry(long lMaster, long lSlave, long *lOnOff);
+	BOOL SetGantry(long lMaster, long lSlave, long lOnOff);
+	BOOL SetPosition(int nAxisID, double fPos);
+	void EnableSwLimit(BOOL bEnable = TRUE);
+	void EnableHwLimit(BOOL bEnable = TRUE);
+	void EnableHwHome(BOOL bEnable = TRUE);
 
 	// Overrides
 	// ClassWizard generated virtual function overrides
