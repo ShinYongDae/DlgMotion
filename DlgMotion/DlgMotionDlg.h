@@ -17,11 +17,13 @@ enum OnOffAction { OFF, ON };
 class CDlgMotionDlg : public CDialog
 {
 	CEtherCat *m_pEtherCat;
-	double m_dEncAct[MAX_AXIS], m_dEncCmd[MAX_AXIS];
 	int m_nStatus[MAX_AXIS];
 	BOOL m_bTIM_DISP_ENC;
 	int m_nCurSelMaster, m_nCurSelSlaver;
 	CMyBtn myBtnJogP[4], myBtnJogM[4];
+
+	double m_dEncAct[MAX_AXIS], m_dEncCmd[MAX_AXIS];
+	unsigned long m_ulDispIn, m_ulDispOut, m_ulOut;
 
 	void Init();
 	void InitBtn();
@@ -35,6 +37,10 @@ class CDlgMotionDlg : public CDialog
 	void DispMotorType();
 	void DispMoveConf();
 	void DispLimitSens();
+	void DispIoIn();
+	void DispIoOut();
+
+	void SetIoOut();
 
 	void CheckBtnStatus();
 
@@ -53,6 +59,8 @@ public:
 	CThreadTask m_Thread[MAX_THREAD];
 	static UINT ThreadProc0(LPVOID lpContext);
 	void GetEnc();
+	void GetIoIn();
+	void GetIoOut();
 
 	void SwMyBtnDown(int nCtrlID);
 	void SwMyBtnUp(int nCtrlID);
@@ -110,4 +118,5 @@ public:
 
 	afx_msg LRESULT OnMyBtnDown(WPARAM wPara, LPARAM lPara);
 	afx_msg LRESULT OnMyBtnUp(WPARAM wPara, LPARAM lPara);
+	afx_msg void OnBnClickedButton29();
 };

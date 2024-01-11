@@ -19,6 +19,7 @@ CEtherCat::CEtherCat(CWnd* pParent)
 	UINT16 nDevIdIoIn = NMC_DEVICE_IOIN;
 	UINT16 nDevIdIoOut = NMC_DEVICE_IOOUT;
 
+
 	m_nBoardId = nBoardID;
 	m_nDevIdIoIn = nDevIdIoIn;
 	m_nDevIdIoOut = nDevIdIoOut;
@@ -178,6 +179,17 @@ void CEtherCat::LoadParam()
 
 	int nID, nCol, i, nAxisID;
 
+	// [ETHERCAT_IO]
+	if (0 < ::GetPrivateProfileString(_T("ETHERCAT_IO"), _T("ADDR"), NULL, szData, sizeof(szData), m_sPathMotionParam))
+	{
+		m_nDevIdIoIn = _ttoi(szData);
+		m_nDevIdIoOut = _ttoi(szData);
+	}
+	//else
+	//{
+	//	m_nDevIdIoIn = 19;
+	//	m_nDevIdIoOut = 19;
+	//}
 
 	// [CONTROL PARAM]
 	if (0 < ::GetPrivateProfileString(_T("CONTROL PARAM"), _T("TOTAL MOTION"), NULL, szData, sizeof(szData), m_sPathMotionParam))

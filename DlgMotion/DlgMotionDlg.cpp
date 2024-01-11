@@ -73,6 +73,7 @@ BEGIN_MESSAGE_MAP(CDlgMotionDlg, CDialog)
 	ON_BN_CLICKED(IDC_BUTTON28, &CDlgMotionDlg::OnBnClickedButton28)
 	ON_MESSAGE(WM_MYBTN_DOWN, OnMyBtnDown)
 	ON_MESSAGE(WM_MYBTN_UP, OnMyBtnUp)
+	ON_BN_CLICKED(IDC_BUTTON29, &CDlgMotionDlg::OnBnClickedButton29)
 END_MESSAGE_MAP()
 
 
@@ -145,6 +146,9 @@ void CDlgMotionDlg::Init()
 	}
 
 	m_pEtherCat->WriteBit(16, ON);   //MC_ON
+	Sleep(300);
+
+	SetIoOut();
 
 	ThreadInit();	// GetEnc();
 
@@ -235,6 +239,8 @@ UINT CDlgMotionDlg::ThreadProc0(LPVOID lpContext)
 		dwTick = GetTickCount();
 
 		pThread->GetEnc();
+		pThread->GetIoIn();
+		pThread->GetIoOut();
 		Sleep(30);
 	}
 	pThread->m_bThread[0] = FALSE;
@@ -253,6 +259,22 @@ void CDlgMotionDlg::GetEnc()
 		m_dEncAct[i] = m_pEtherCat->GetActualPosition(i);
 		m_nStatus[i] = m_pEtherCat->GetState(i);
 	}
+}
+
+void CDlgMotionDlg::GetIoIn()
+{
+	if (!m_pEtherCat)
+		return;
+
+	m_ulDispIn = m_pEtherCat->ReadAllBit(TRUE);
+}
+
+void CDlgMotionDlg::GetIoOut()
+{
+	if (!m_pEtherCat)
+		return;
+
+	m_ulDispOut = m_pEtherCat->ReadAllBit(FALSE);
 }
 
 void CDlgMotionDlg::ThreadKill()
@@ -296,6 +318,8 @@ void CDlgMotionDlg::OnTimer(UINT_PTR nIDEvent)
 		DispEnc();
 		DispStatus();
 		DispLimitSens();
+		DispIoIn();
+		DispIoOut();
 
 		CheckBtnStatus();
 
@@ -1230,3 +1254,157 @@ void CDlgMotionDlg::OnBnClickedButton28()
 		AfxMessageBox(sMsg);
 	}
 }
+
+
+void CDlgMotionDlg::DispIoIn()
+{
+	if (!m_pEtherCat)
+		return;
+
+	CString sDisp[4], sTemp;
+
+	sDisp[0] = _T("");
+	sDisp[1] = _T("");
+	sDisp[2] = _T("");
+	sDisp[3] = _T("");
+
+	for (int i = 31; i <= 0; i--)
+	{
+		sTemp.Format(_T("%d"), (m_ulDispIn & (0x00000001 << i)) ? 1 : 0);
+
+		if (i >= 24)
+			sDisp[3] += sTemp;
+		else if(i >= 16)
+			sDisp[2] += sTemp;
+		else if (i >= 8)
+			sDisp[1] += sTemp;
+		else
+			sDisp[0] += sTemp;
+	}
+
+	GetDlgItem(IDC_STATIC_DISP_IO_IN_3)->SetWindowText(sDisp[3]);
+	GetDlgItem(IDC_STATIC_DISP_IO_IN_2)->SetWindowText(sDisp[2]);
+	GetDlgItem(IDC_STATIC_DISP_IO_IN_1)->SetWindowText(sDisp[1]);
+	GetDlgItem(IDC_STATIC_DISP_IO_IN_0)->SetWindowText(sDisp[0]);
+}
+
+void CDlgMotionDlg::DispIoOut()
+{
+	if (!m_pEtherCat)
+		return;
+
+	CString sDisp[4], sTemp;
+
+	sDisp[0] = _T("");
+	sDisp[1] = _T("");
+	sDisp[2] = _T("");
+	sDisp[3] = _T("");
+
+	for (int i = 31; i <= 0; i--)
+	{
+		sTemp.Format(_T("%d"), (m_ulDispOut & (0x00000001 << i)) ? 1 : 0);
+
+		if (i >= 24)
+			sDisp[3] += sTemp;
+		else if (i >= 16)
+			sDisp[2] += sTemp;
+		else if (i >= 8)
+			sDisp[1] += sTemp;
+		else
+			sDisp[0] += sTemp;
+	}
+
+	GetDlgItem(IDC_STATIC_DISP_IO_OUT_3)->SetWindowText(sDisp[3]);
+	GetDlgItem(IDC_STATIC_DISP_IO_OUT_2)->SetWindowText(sDisp[2]);
+	GetDlgItem(IDC_STATIC_DISP_IO_OUT_1)->SetWindowText(sDisp[1]);
+	GetDlgItem(IDC_STATIC_DISP_IO_OUT_0)->SetWindowText(sDisp[0]);
+}
+
+void CDlgMotionDlg::SetIoOut()
+{
+	if (!m_pEtherCat)
+		return;
+
+	CString sDisp[4], sTemp;
+
+	sDisp[0] = _T("");
+	sDisp[1] = _T("");
+	sDisp[2] = _T("");
+	sDisp[3] = _T("");
+
+	m_ulDispOut = m_pEtherCat->ReadAllBit(FALSE);
+	m_ulOut = m_ulDispOut;
+
+	for (int i = 31; i <= 0; i--)
+	{
+		sTemp.Format(_T("%d"), (m_ulDispOut & (0x00000001 << i)) ? 1 : 0);
+
+		if (i >= 24)
+			sDisp[3] += sTemp;
+		else if (i >= 16)
+			sDisp[2] += sTemp;
+		else if (i >= 8)
+			sDisp[1] += sTemp;
+		else
+			sDisp[0] += sTemp;
+	}
+
+	GetDlgItem(IDC_EDIT_IO_OUT_3)->SetWindowText(sDisp[3]);
+	GetDlgItem(IDC_EDIT_IO_OUT_2)->SetWindowText(sDisp[2]);
+	GetDlgItem(IDC_EDIT_IO_OUT_1)->SetWindowText(sDisp[1]);
+	GetDlgItem(IDC_EDIT_IO_OUT_0)->SetWindowText(sDisp[0]);
+}
+
+void CDlgMotionDlg::OnBnClickedButton29()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	CString sDisp[4], sTemp[2];
+
+	GetDlgItem(IDC_EDIT_IO_OUT_3)->GetWindowText(sDisp[3]);
+	GetDlgItem(IDC_EDIT_IO_OUT_2)->GetWindowText(sDisp[2]);
+	GetDlgItem(IDC_EDIT_IO_OUT_1)->GetWindowText(sDisp[1]);
+	GetDlgItem(IDC_EDIT_IO_OUT_0)->GetWindowText(sDisp[0]);
+
+	if (sDisp[3].GetLength() < 8 || sDisp[2].GetLength() < 8 ||
+		sDisp[1].GetLength() < 8 || sDisp[0].GetLength() < 8)
+	{
+		AfxMessageBox(_T("Error - Output Data Length."));
+		return;
+	}
+
+	m_ulOut = 0;
+
+	for (int i = 31; i <= 0; i--)
+	{
+		if (i >= 24)
+		{
+			sTemp[0] = sDisp[3].Left(32 - i);
+			sTemp[1] = sTemp[0].Right(1);
+			m_ulOut += (2 ^ i) * _tstoi(sTemp[1]);
+		}
+		else if (i >= 16)
+		{
+			sTemp[0] = sDisp[2].Left(24 - i);
+			sTemp[1] = sTemp[0].Right(1);
+			m_ulOut += (2 ^ i) * _tstoi(sTemp[1]);
+		}
+		else if (i >= 8)
+		{
+			sTemp[0] = sDisp[1].Left(16 - i);
+			sTemp[1] = sTemp[0].Right(1);
+			m_ulOut += (2 ^ i) * _tstoi(sTemp[1]);
+		}
+		else
+		{
+			sTemp[0] = sDisp[0].Left(8 - i);
+			sTemp[1] = sTemp[0].Right(1);
+			m_ulOut += (2 ^ i) * _tstoi(sTemp[1]);
+		}
+	}
+
+	m_pEtherCat->WriteData(m_ulOut);
+}
+
