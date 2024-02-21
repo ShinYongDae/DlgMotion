@@ -143,6 +143,8 @@ public:
 	void EnableHwLimit(BOOL bEnable = TRUE);
 	void EnableHwHome(BOOL bEnable = TRUE);
 
+	int GetTotalAxis();
+
 	// Overrides
 	// ClassWizard generated virtual function overrides
 	//{{AFX_VIRTUAL(CEtherCat)

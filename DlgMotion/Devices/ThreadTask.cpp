@@ -3,7 +3,6 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-//#include "../Global/GlobalDefine.h"
 #include "ThreadTask.h"
 
 #ifdef _DEBUG

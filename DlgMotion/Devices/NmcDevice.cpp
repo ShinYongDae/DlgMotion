@@ -298,7 +298,7 @@ BOOL CNmcDevice::ResetAxesGroup()
 		if (ms != MC_OK)
 		{
 			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-			msg.Format(_T("Error - MC_GroupDisable :: 0x%08X, %s"), ms, cstrErrorMsg);
+			msg.Format(_T("Error - MC_GroupDisable :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 			AfxMessageBox(msg);
 
 			return FALSE;
@@ -501,7 +501,7 @@ BOOL CNmcDevice::InitDevice(int nDevice)
 	if (ms != MC_OK) //MC_OK가 아닐 경우 Error 출력
 	{
 		MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-		_stprintf(msg, _T("Error - MC_GetMasterMap :: 0x%08X, %hs\n"), ms, cstrErrorMsg);
+		_stprintf(msg, _T("Error - MC_GetMasterMap :: 0x%08X, %hs\n"), ms, CharToString(cstrErrorMsg));
 		TRACE(msg);
 		return FALSE;
 	}
@@ -527,7 +527,7 @@ BOOL CNmcDevice::InitDevice(int nDevice)
 		if (ms != MC_OK) //MC_OK가 아닐경우 Error 출력
 		{
 			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-			_stprintf(msg, _T("Error - MC_MasterInit :: 0x%08X, %hs\n"), ms, cstrErrorMsg);
+			_stprintf(msg, _T("Error - MC_MasterInit :: 0x%08X, %hs\n"), ms, CharToString(cstrErrorMsg));
 			TRACE(msg);
 
 			return FALSE;
@@ -541,7 +541,7 @@ BOOL CNmcDevice::InitDevice(int nDevice)
 		if (ms != MC_OK) //MC_OK가 아닐 경우 Error 출력
 		{
 			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-			_stprintf(msg, _T("Error - MC_MasterSTOP :: 0x%08X, %hs\n"), ms, cstrErrorMsg);
+			_stprintf(msg, _T("Error - MC_MasterSTOP :: 0x%08X, %hs\n"), ms, CharToString(cstrErrorMsg));
 			TRACE(msg);
 
 			return FALSE;
@@ -555,7 +555,7 @@ BOOL CNmcDevice::InitDevice(int nDevice)
 		if (ms != MC_OK)
 		{
 			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-			_stprintf(msg, _T("Error - MC_MasterRUN :: 0x%08X, %hs\n"), ms, cstrErrorMsg);
+			_stprintf(msg, _T("Error - MC_MasterRUN :: 0x%08X, %hs\n"), ms, CharToString(cstrErrorMsg));
 			TRACE(msg);
 
 			return FALSE;
@@ -571,7 +571,7 @@ BOOL CNmcDevice::InitDevice(int nDevice)
 				if (ms != MC_OK)
 				{
 					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-					_stprintf(msg, _T("Error - MasterGetCurMode :: 0x%08X, %hs\n"), ms, cstrErrorMsg);
+					_stprintf(msg, _T("Error - MasterGetCurMode :: 0x%08X, %hs\n"), ms, CharToString(cstrErrorMsg));
 					TRACE(msg);
 
 					return FALSE;
@@ -613,7 +613,7 @@ BOOL CNmcDevice::InitDevice(int nDevice)
 			if (ms != MC_OK)
 			{
 				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				_stprintf(msg, _T("Error - SlaveGetCurState :: 0x%08X, %hs\n"), ms, cstrErrorMsg);
+				_stprintf(msg, _T("Error - SlaveGetCurState :: 0x%08X, %hs\n"), ms, CharToString(cstrErrorMsg));
 				TRACE(msg);
 
 				return FALSE;
@@ -1127,15 +1127,21 @@ BOOL CNmcDevice::ReadOut(long bit)
 	return ((nData >> bit) & 0x01) ? TRUE : FALSE;
 }
 
-BOOL CNmcDevice::GantryEnable(long lMaster, long lSlave, long lOnOff)
+BOOL CNmcDevice::GantryEnable(long lOnOff)
 {
 	TCHAR msg[MAX_ERR_LEN];
 	MC_STATUS ms = MC_OK;
 	char cstrErrorMsg[MAX_ERR_LEN];
 
-	UINT32 state = 0x00000000;
+	if (m_lGantryMaster < 0 || m_lGantrylSlave < 0)
+		return FALSE;
+
+	long lMaster = m_lGantryMaster;
+	long lSlave = m_lGantrylSlave;
+
 	DWORD nTick = GetTickCount();
 
+	UINT32 state = 0;// 0x00000000;
 	ms = MC_GantryReadStatus(m_nBoardId, 0, &state);
 
 	if (ms != MC_OK)
@@ -1144,33 +1150,69 @@ BOOL CNmcDevice::GantryEnable(long lMaster, long lSlave, long lOnOff)
 		return FALSE;
 	}
 
-	nTick = GetTickCount();
-	while ( !((state & mcGantry_MotionCompleted) && (state & mcGantry_YawStable)) && state)
+	if(lOnOff && !m_bGantryEnabled)
 	{
-		if (GetTickCount() - nTick >= 60000)
+		if (GetAxis(lMaster)->IsAmpFault() || !GetAxis(lMaster)->IsStandStill() || !GetAxis(lMaster)->GetAmpEnable())
 		{
-			AfxMessageBox(_T("Error-StartRsaHoming(221)"));
-			return FALSE;
+			GetAxis(lMaster)->ClearStatusGantry();
+			Sleep(30);
 		}
-		Sleep(100);
 
-		ms = MC_GantryReadStatus(m_nBoardId, 0, &state);
-		if (ms != MC_OK)
+		if (GetAxis(lSlave)->IsAmpFault() || !GetAxis(lSlave)->IsStandStill() || !GetAxis(lSlave)->GetAmpEnable())
 		{
-			AfxMessageBox(_T("Error-StartRsaHoming(202)"));
-			return FALSE;
+			GetAxis(lSlave)->ClearStatusGantry();
+			Sleep(30);
 		}
-	}
 
+		while ((state & mcGantry_AmpOff) || (state & mcGantry_Warning) || (state & mcGantry_Fault))
+		{
+			if (GetTickCount() - nTick >= 60000)
+			{
+				AfxMessageBox(_T("Error-StartRsaHoming(221)"));
+				return FALSE;
+			}
+			Sleep(100);
 
-	if(lOnOff)
-	{
-		ms = MC_GantryEnable(m_nBoardId, 0, lMaster + m_nOffsetAxisID, lSlave + m_nOffsetAxisID, 50, 10000000);
+			ms = MC_GantryReadStatus(m_nBoardId, 0, &state);
+			if (ms != MC_OK)
+			{
+				AfxMessageBox(_T("Error-StartRsaHoming(202)"));
+				return FALSE;
+			}
+		}
+
+		ms = MC_GantryEnable(m_nBoardId, 0, lMaster + m_nOffsetAxisID, lSlave + m_nOffsetAxisID, VIRTUAL_RATIO::CSV, 10000000);
 		if (ms != MC_OK)
 		{
 			AfxMessageBox(_T("Error-MC_GantryEnable"));
 			return FALSE;
 		}
+
+		ms = MC_GantryReadStatus(m_nBoardId, 0, &state);
+
+		if (ms != MC_OK)
+		{
+			AfxMessageBox(_T("Error-MC_GantryReadStatus(220)"));
+			return FALSE;
+		}
+
+		while (!((state & mcGantry_MotionCompleted) && (state & mcGantry_YawStable)))
+		{
+			if (GetTickCount() - nTick >= 60000)
+			{
+				AfxMessageBox(_T("Error-StartRsaHoming(221)"));
+				return FALSE;
+			}
+			Sleep(100);
+
+			ms = MC_GantryReadStatus(m_nBoardId, 0, &state);
+			if (ms != MC_OK)
+			{
+				AfxMessageBox(_T("Error-StartRsaHoming(202)"));
+				return FALSE;
+			}
+		}
+
 		m_bGantryEnabled = TRUE;
 		Sleep(50);
 		return TRUE;
@@ -1181,11 +1223,11 @@ BOOL CNmcDevice::GantryEnable(long lMaster, long lSlave, long lOnOff)
 		if (ms != MC_OK)
 		{
 			AfxMessageBox(_T("Error-MC_GantryDisable"));
-			return TRUE;		
+			return FALSE;		
 		}
 		m_bGantryEnabled = FALSE;
 		Sleep(50);
-		return FALSE;
+		return TRUE;
 	}
 
 	//Sleep(300);
@@ -2021,7 +2063,7 @@ BOOL CNmcDevice::TwoStartPosMove0(int nMsId0, int nMsId1, double fPos0, double f
 		if (ms != MC_OK)
 		{
 			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-			msg.Format(_T("Error :: 0x%08X, %s"), ms, cstrErrorMsg);
+			msg.Format(_T("Error :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 			AfxMessageBox(msg);
 			return FALSE;
 		}
@@ -2060,7 +2102,7 @@ BOOL CNmcDevice::TwoStartPosMove0(int nMsId0, int nMsId1, double fPos0, double f
 	if (ms != MC_OK)
 	{
 		MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-		msg.Format(_T("Error :: 0x%08X, %s"), ms, cstrErrorMsg);
+		msg.Format(_T("Error :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 		AfxMessageBox(msg);
 		return FALSE;
 	}
@@ -2270,7 +2312,7 @@ BOOL CNmcDevice::TwoStartPosMove1(int nMsId0, int nMsId1, double fPos0, double f
 		if (ms != MC_OK)
 		{
 			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-			msg.Format(_T("Error :: 0x%08X, %s"), ms, cstrErrorMsg);
+			msg.Format(_T("Error :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 			AfxMessageBox(msg);
 			return FALSE;
 		}
@@ -2327,7 +2369,7 @@ BOOL CNmcDevice::TwoStartPosMove1(int nMsId0, int nMsId1, double fPos0, double f
 	if (ms != MC_OK)
 	{
 		MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-		msg.Format(_T("Error :: 0x%08X, %s"), ms, cstrErrorMsg);
+		msg.Format(_T("Error :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 		AfxMessageBox(msg);
 		return FALSE;
 	}
@@ -2447,7 +2489,7 @@ BOOL CNmcDevice::TwoStartPosMove0(int nMsId0, int nMsId1, double fPos0, double f
 		if (ms != MC_OK)
 		{
 			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-			msg.Format(_T("Error :: 0x%08X, %s"), ms, cstrErrorMsg);
+			msg.Format(_T("Error :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 			AfxMessageBox(msg);
 			return FALSE;
 		}
@@ -2460,7 +2502,7 @@ BOOL CNmcDevice::TwoStartPosMove0(int nMsId0, int nMsId1, double fPos0, double f
 	if (ms != MC_OK)
 	{
 		MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-		msg.Format(_T("Error :: 0x%08X, %s"), ms, cstrErrorMsg);
+		msg.Format(_T("Error :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 		AfxMessageBox(msg);
 		return FALSE;
 	}
@@ -2667,7 +2709,7 @@ BOOL CNmcDevice::TwoStartPosMove1(int nMsId0, int nMsId1, double fPos0, double f
 		if (ms != MC_OK)
 		{
 			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-			msg.Format(_T("Error :: 0x%08X, %s"), ms, cstrErrorMsg);
+			msg.Format(_T("Error :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 			AfxMessageBox(msg);
 			return FALSE;
 		}
@@ -2724,7 +2766,7 @@ BOOL CNmcDevice::TwoStartPosMove1(int nMsId0, int nMsId1, double fPos0, double f
 	if (ms != MC_OK)
 	{
 		MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-		msg.Format(_T("Error :: 0x%08X, %s"), ms, cstrErrorMsg);
+		msg.Format(_T("Error :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 		AfxMessageBox(msg);
 		return FALSE;
 	}
@@ -2790,12 +2832,29 @@ BOOL CNmcDevice::SetGantry(long lMaster, long lSlave, long lOnOff)
 	if (lMaster >= m_nTotalMotion || lSlave >= m_nTotalMotion)
 		return FALSE;
 
-	m_bUseGantry = TRUE;
+	//m_bUseGantry = TRUE;
 	m_lGantryMaster = lMaster;
 	m_lGantrylSlave = lSlave;
-	m_lGantryEnable = lOnOff;
+	
+	BOOL bRtn = GantryEnable(lOnOff);
+	if (bRtn)
+	{
+		m_lGantryEnable = lOnOff;
+		if (m_lGantryEnable)
+		{
+			GetAxis(lMaster)->SetGantryMaster(TRUE);
+			GetAxis(lSlave)->SetGantrySlave(TRUE);
+		}
+		else
+		{
+			GetAxis(lMaster)->SetGantryMaster(FALSE);
+			GetAxis(lSlave)->SetGantrySlave(FALSE);
+		}
 
-	return TRUE;
+		Sleep(50);
+	}
+
+	return bRtn; // TRUE : No Error, FALSE : Error
 }
 
 
@@ -3250,3 +3309,22 @@ void CNmcDevice::EnableHwHome(int nAxisID, BOOL bEnable)
 //	return m_cWindowVersionCollect.GetOsInfo();
 //}
 
+
+CString CNmcDevice::CharToString(char *szStr)
+{
+	CString strRet;
+
+	int nLen = strlen(szStr) + sizeof(char);
+	wchar_t *tszTemp = NULL;
+	tszTemp = new WCHAR[nLen];
+
+	MultiByteToWideChar(CP_ACP, 0, szStr, -1, tszTemp, nLen * sizeof(WCHAR));
+
+	strRet.Format(_T("%s"), (CString)tszTemp);
+	if (tszTemp)
+	{
+		delete[] tszTemp;
+		tszTemp = NULL;
+	}
+	return strRet;
+}

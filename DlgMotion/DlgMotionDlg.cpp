@@ -152,27 +152,68 @@ void CDlgMotionDlg::Init()
 
 	ThreadInit();	// GetEnc();
 
+	int nTotalAxis = m_pEtherCat->GetTotalAxis();
+
 	CButton* pCtlChkBtn = NULL;
 
 	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK1);
-	pCtlChkBtn->SetCheck(FALSE);
-	pCtlChkBtn->SetWindowText(_T("OFF"));
-	m_pEtherCat->ServoOnOff(0, FALSE);
+	if (nTotalAxis > 0)
+	{
+		pCtlChkBtn->SetCheck(FALSE);
+		pCtlChkBtn->SetWindowText(_T("OFF"));
+		m_pEtherCat->ServoOnOff(0, FALSE);
+	}
+	else
+	{
+		pCtlChkBtn->SetCheck(FALSE);
+		pCtlChkBtn->SetWindowText(_T("OFF"));
+		pCtlChkBtn->EnableWindow(FALSE);
+	}
 
 	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK2);
-	pCtlChkBtn->SetCheck(FALSE);
-	pCtlChkBtn->SetWindowText(_T("OFF"));
-	m_pEtherCat->ServoOnOff(1, FALSE);
+	if (nTotalAxis > 1)
+	{
+		pCtlChkBtn->SetCheck(FALSE);
+		pCtlChkBtn->SetWindowText(_T("OFF"));
+		m_pEtherCat->ServoOnOff(1, FALSE);
+	}
+	else
+	{
+		pCtlChkBtn->SetCheck(FALSE);
+		pCtlChkBtn->SetWindowText(_T("OFF"));
+		pCtlChkBtn->EnableWindow(FALSE);
+	}
 
 	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK3);
-	pCtlChkBtn->SetCheck(FALSE);
-	pCtlChkBtn->SetWindowText(_T("OFF"));
-	m_pEtherCat->ServoOnOff(2, FALSE);
+	if (nTotalAxis > 2)
+	{
+		pCtlChkBtn->SetCheck(FALSE);
+		pCtlChkBtn->SetWindowText(_T("OFF"));
+		m_pEtherCat->ServoOnOff(2, FALSE);
+	}
+	else
+	{
+		pCtlChkBtn->SetCheck(FALSE);
+		pCtlChkBtn->SetWindowText(_T("OFF"));
+		pCtlChkBtn->EnableWindow(FALSE);
+	}
 
 	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK4);
-	pCtlChkBtn->SetCheck(FALSE);
-	pCtlChkBtn->SetWindowText(_T("OFF"));
-	m_pEtherCat->ServoOnOff(3, FALSE);
+	if (nTotalAxis > 3)
+	{
+		pCtlChkBtn->SetCheck(FALSE);
+		pCtlChkBtn->SetWindowText(_T("OFF"));
+		m_pEtherCat->ServoOnOff(3, FALSE);
+	}
+	else
+	{
+		pCtlChkBtn->SetCheck(FALSE);
+		pCtlChkBtn->SetWindowText(_T("OFF"));
+		pCtlChkBtn->EnableWindow(FALSE);
+	}
+
+	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK21);
+	pCtlChkBtn->EnableWindow(FALSE);
 
 	m_bTIM_DISP_ENC = TRUE;
 	SetTimer(TIM_DISP_ENC, 100, NULL);
@@ -349,15 +390,15 @@ void CDlgMotionDlg::DispEnc()
 			break;
 		case 1:
 			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS1);
-			pWndCmd = GetDlgItem(IDC_STATIC_ACTUAL_AXIS1);
+			pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS1);
 			break;
 		case 2:
 			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS2);
-			pWndCmd = GetDlgItem(IDC_STATIC_ACTUAL_AXIS2);
+			pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS2);
 			break;
 		case 3:
 			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS3);
-			pWndCmd = GetDlgItem(IDC_STATIC_ACTUAL_AXIS3);
+			pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS3);
 			break;
 		}
 
@@ -631,7 +672,8 @@ void CDlgMotionDlg::InitCombo()
 	pCtlComboMaster->ResetContent();
 	pCtlComboSlaver->ResetContent();
 
-	for (nID = 0; nID < MAX_AXIS; nID++)
+	int nTotalAxis = m_pEtherCat->GetTotalAxis();
+	for (nID = 0; nID < nTotalAxis; nID++)
 	{
 		pCtlComboMaster->InsertString(nID, m_pEtherCat->m_pParamAxis[nID].sName);
 	}
@@ -643,7 +685,7 @@ void CDlgMotionDlg::InitCombo()
 void CDlgMotionDlg::OnSelchangeCombo1()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
-	int nID = 0;
+	int nID = 0, nID2 = 0;
 
 	CComboBox* pCtlComboMaster = (CComboBox*)GetDlgItem(IDC_COMBO1);
 	CComboBox* pCtlComboSlaver = (CComboBox*)GetDlgItem(IDC_COMBO2);
@@ -661,12 +703,14 @@ void CDlgMotionDlg::OnSelchangeCombo1()
 	if(nCount > 0)
 		pCtlComboSlaver->ResetContent();
 
-	for (nID = 0; nID < MAX_AXIS; nID++)
+	int nTotalAxis = m_pEtherCat->GetTotalAxis();
+	for (nID = 0; nID < nTotalAxis; nID++)
 	{
 		if (nID != nIndex)
 		{
 			if (m_pEtherCat)
-				pCtlComboSlaver->InsertString(nID, m_pEtherCat->m_pParamAxis[nID].sName);
+				pCtlComboSlaver->InsertString(nID2, m_pEtherCat->m_pParamAxis[nID].sName);
+			nID2++;
 		}
 	}
 
@@ -727,7 +771,7 @@ void CDlgMotionDlg::OnBnClickedCheck21()
 	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK21);
 
 	BOOL bOn = pCtlChkBtn->GetCheck();
-	if (bOn)
+	if (bOn) // SetGantry
 	{
 		if (bServoOn[0] && bServoOn[1])
 		{
@@ -783,7 +827,7 @@ void CDlgMotionDlg::OnBnClickedCheck21()
 			return;
 		}
 	}
-	else
+	else // ResetGantry
 	{
 		if (!m_pEtherCat->GetGantry(m_nCurSelMaster, m_nCurSelSlaver, &lOnOff))
 		{
@@ -1167,11 +1211,20 @@ void CDlgMotionDlg::CheckBtnStatus()
 	pBtnHome[2] = (CButton*)GetDlgItem(IDC_BUTTON27);
 	pBtnHome[3] = (CButton*)GetDlgItem(IDC_BUTTON28);
 
+	int nTotalAxis = m_pEtherCat->GetTotalAxis();
+
 	for (int nID = 0; nID < MAX_AXIS; nID++)
 	{
-		if (m_pEtherCat->IsHomeDone(nID))
+		if (nID < nTotalAxis)
 		{
-			pBtnHome[nID]->EnableWindow(TRUE);
+			if (m_pEtherCat->IsHomeDone(nID))
+			{
+				pBtnHome[nID]->EnableWindow(TRUE);
+			}
+			else
+			{
+				pBtnHome[nID]->EnableWindow(FALSE);
+			}
 		}
 		else
 		{
@@ -1268,7 +1321,7 @@ void CDlgMotionDlg::DispIoIn()
 	sDisp[2] = _T("");
 	sDisp[3] = _T("");
 
-	for (int i = 31; i <= 0; i--)
+	for (int i = 31; i >= 0; i--)
 	{
 		sTemp.Format(_T("%d"), (m_ulDispIn & (0x00000001 << i)) ? 1 : 0);
 
@@ -1300,7 +1353,7 @@ void CDlgMotionDlg::DispIoOut()
 	sDisp[2] = _T("");
 	sDisp[3] = _T("");
 
-	for (int i = 31; i <= 0; i--)
+	for (int i = 31; i >= 0; i--)
 	{
 		sTemp.Format(_T("%d"), (m_ulDispOut & (0x00000001 << i)) ? 1 : 0);
 
@@ -1335,7 +1388,7 @@ void CDlgMotionDlg::SetIoOut()
 	m_ulDispOut = m_pEtherCat->ReadAllBit(FALSE);
 	m_ulOut = m_ulDispOut;
 
-	for (int i = 31; i <= 0; i--)
+	for (int i = 31; i >= 0; i--)
 	{
 		sTemp.Format(_T("%d"), (m_ulDispOut & (0x00000001 << i)) ? 1 : 0);
 
@@ -1377,7 +1430,7 @@ void CDlgMotionDlg::OnBnClickedButton29()
 
 	m_ulOut = 0;
 
-	for (int i = 31; i <= 0; i--)
+	for (int i = 31; i >= 0; i--)
 	{
 		if (i >= 24)
 		{

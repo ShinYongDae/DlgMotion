@@ -2,7 +2,6 @@
 //
 
 #include "stdafx.h"
-//#include "GvisR2R.h"
 #include "MyFileErrMap.h"
 
 #ifdef _DEBUG

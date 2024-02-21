@@ -5,8 +5,6 @@
 #pragma once
 #endif // _MSC_VER > 1000
 // MyBtn.h : header file
-//
-//#include "../Global/GlobalDefine.h"
 
 #define BTN_TYPE_DEFAULT	0
 #define BTN_TYPE_CHECK		1

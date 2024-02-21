@@ -25,6 +25,7 @@ typedef unsigned long   U32;
 typedef float           F32;
 typedef double          F64;
 
+typedef enum { CSP = 0, CSV = 50 } VIRTUAL_RATIO;
 
 class CNmcDevice : public CWnd
 {
@@ -75,6 +76,8 @@ class CNmcDevice : public CWnd
 	int m_nTotalMotion;
 	int m_nTotalAxis;
 
+	CString CharToString(char *szStr);
+
 	//void SaveLog(CString strMsg);
 
 	//CWindowVersion m_cWindowVersionCollect;
@@ -122,7 +125,7 @@ public:
 	long ReadOut();
 	BOOL ReadIn(long bit);
 	BOOL ReadOut(long bit);
-	BOOL GantryEnable(long lMaster, long lSlave, long lOnOff);
+	BOOL GantryEnable(long lOnOff);
 	BOOL GetGantry(long lMaster, long lSlave, long *lOnOff);
 	BOOL StartGantrySlaveMove(int nAxisId, BOOL bAbs, double fPos, double fVel, double fAcc, double fDec, double fJerk=0.0, byte nDispMode=3);
 
@@ -159,10 +162,10 @@ public:
 	int UnGroup2Ax(int nGroupNum);
 	void UnGroup2Ax(int nBdNum, int nGroupNum);
 
-	BOOL TwoStartPosMove0(int nMsId0, int nMsId1, double fPos0, double fPos1, double fVel, double fAcc, double fDec, BOOL bAbs = ABS, BOOL bWait = WAIT, int bMotionType = S_CURVE, BOOL bOptimize = OPTIMIZED);
-	BOOL TwoStartPosMove1(int nMsId0, int nMsId1, double fPos0, double fPos1, double fVel, double fAcc, double fDec, BOOL bAbs = ABS, BOOL bWait = WAIT, int bMotionType = S_CURVE, BOOL bOptimize = OPTIMIZED);
-	BOOL TwoStartPosMove0(int nMsId0, int nMsId1, double fPos0, double fPos1, double fVelRatio = 100.0, BOOL bAbs = TRUE, BOOL bWait = TRUE, int bMotionType = S_CURVE, BOOL bOptimize = OPTIMIZED);
-	BOOL TwoStartPosMove1(int nMsId0, int nMsId1, double fPos0, double fPos1, double fVelRatio = 100.0, BOOL bAbs = TRUE, BOOL bWait = TRUE, int bMotionType = S_CURVE, BOOL bOptimize = OPTIMIZED);
+	BOOL TwoStartPosMove0(int nMsId0, int nMsId1, double fPos0, double fPos1, double fVel, double fAcc, double fDec, BOOL bAbs = ABS, BOOL bWait = WAIT, int bMotionType = S_CURVE, BOOL bOptimize = NO_OPTIMIZED);
+	BOOL TwoStartPosMove1(int nMsId0, int nMsId1, double fPos0, double fPos1, double fVel, double fAcc, double fDec, BOOL bAbs = ABS, BOOL bWait = WAIT, int bMotionType = S_CURVE, BOOL bOptimize = NO_OPTIMIZED);
+	BOOL TwoStartPosMove0(int nMsId0, int nMsId1, double fPos0, double fPos1, double fVelRatio = 100.0, BOOL bAbs = TRUE, BOOL bWait = TRUE, int bMotionType = S_CURVE, BOOL bOptimize = NO_OPTIMIZED);
+	BOOL TwoStartPosMove1(int nMsId0, int nMsId1, double fPos0, double fPos1, double fVelRatio = 100.0, BOOL bAbs = TRUE, BOOL bWait = TRUE, int bMotionType = S_CURVE, BOOL bOptimize = NO_OPTIMIZED);
 	int DisableGroup2Ax(int nGroupNum);
 
 	int StartRsaHoming(int nAxisId, BOOL bWait=TRUE, int nMode=HOMING_LIMIT_SWITCH, int nDir=HOMING_DIR_CCW);
@@ -239,9 +242,9 @@ public:
 #else
 	BOOL Move(int nMotionId, double *pTgtPos, BOOL bAbs = ABS, BOOL bWait = NO_WAIT);
 	BOOL Move(int nMotionId, double *pTgtPos, double dRatio, BOOL bAbs = ABS, BOOL bWait = NO_WAIT);
-	BOOL Move(int nMotionId, double *pTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs = ABS, BOOL bWait = WAIT, BOOL bOptimize = OPTIMIZED);
+	BOOL Move(int nMotionId, double *pTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs = ABS, BOOL bWait = WAIT, BOOL bOptimize = NO_OPTIMIZED);
 #endif
-	BOOL Move(int nMotionId, double dTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs = ABS, BOOL bWait = WAIT, BOOL bOptimize = OPTIMIZED);
+	BOOL Move(int nMotionId, double dTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs = ABS, BOOL bWait = WAIT, BOOL bOptimize = NO_OPTIMIZED);
 
 	//BOOL InitListMotion();
 	//void StartListMotion();

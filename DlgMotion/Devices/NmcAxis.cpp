@@ -1,12 +1,7 @@
 // NmcAxis.cpp : implementation file
 //
 #include "stdafx.h"
-//#include "../Global/GlobalDefine.h"
-
 #include "NmcDevice.h"
-//#include "../GvisR2R_PunchView.h"
-
-
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -25,6 +20,10 @@ CNmcAxis::CNmcAxis(CWnd* pParent)
 	m_pParent = pParent;
 	m_fVel = 0.0;
 	m_fAcc = 0.0;
+
+	m_bGantryMaster = FALSE;
+	m_bGantrySlave = FALSE;
+	m_bGantryEnable = FALSE;
 
 	m_bOrigin = FALSE;
 	m_nMoveDir = STOP_DIR;
@@ -61,6 +60,38 @@ END_MESSAGE_MAP()
 /////////////////////////////////////////////////////////////////////////////
 // CNmcAxis message handlers
 
+void CNmcAxis::SetGantryMaster(BOOL bOn)
+{
+	m_bGantryMaster = bOn;
+	SetGantryEnable(bOn);
+}
+
+BOOL CNmcAxis::IsGantryMaster()
+{
+	return m_bGantryMaster;
+}
+
+void CNmcAxis::SetGantrySlave(BOOL bOn)
+{
+	m_bGantrySlave = bOn;
+	SetGantryEnable(bOn);
+}
+
+BOOL CNmcAxis::IsGantrySlave()
+{
+	return m_bGantrySlave;
+}
+
+void CNmcAxis::SetGantryEnable(BOOL bOn)
+{
+	m_bGantryEnable = bOn;
+}
+
+BOOL CNmcAxis::IsGantryEnable()
+{
+	return m_bGantryEnable;
+}
+
 BOOL CNmcAxis::IsAmpFault()
 {
 	MC_STATUS ms = MC_OK;
@@ -73,7 +104,7 @@ BOOL CNmcAxis::IsAmpFault()
 		return TRUE;
 	}
 
-	if ((Status & mcDriveFault) || (Status & mcErrorStop))
+	if ((Status & mcDriveFault) || (Status & mcErrorStop) || (Status & mcDisabled))
 		return TRUE;
 
 	return FALSE;
@@ -109,34 +140,108 @@ double CNmcAxis::GetState()
 BOOL CNmcAxis::CheckAxisDone()
 {
 	return IsAxisDone();
-
-	//MC_STATUS ms = MC_OK;
-	//UINT32 state = 0x00000000;
-
-	//ms = MC_ReadAxisStatus(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, &state);
-	//if (ms != MC_OK)
-	//{
-	//	AfxMessageBox(_T("Error-MC_ReadAxisStatus"));
-	//	return FALSE;
-	//}
-
-	//if (state & mcErrorStop)
-	//{
-	//	AmpFaultReset();
-	//	ClearStatus();
-
-	//	return TRUE;
-	//}
-	//else if (state & mcStandStill)
-	//	return TRUE;
-	//else if (CheckMotionDone())
-	//	return TRUE;
-
-	//return FALSE;
 }
 
 
 BOOL CNmcAxis::ClearStatus()
+{
+	MC_STATUS ms = MC_OK;
+	UINT32 state = 0x00000000;
+	BOOL bGantryEnable = TRUE;
+
+	ms = MC_ReadAxisStatus(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, &state);
+	if (ms != MC_OK)
+	{
+		AfxMessageBox(_T("Error-MC_ReadAxisStatus()"));
+		return FALSE;
+	}
+	if (state & mcErrorStop)
+	{
+		((CNmcDevice*)m_pParent)->RestoreSwEmergency();
+		Sleep(30);
+	}
+
+	if (IsAmpFault())
+	{
+		if (m_bGantryEnable)
+		{
+			if (bGantryEnable)
+			{
+				((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
+				bGantryEnable = FALSE;
+				Sleep(50);
+			}
+		}
+
+		ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
+		Sleep(30);
+
+		if (ms != MC_OK)
+		{
+			if (m_bGantryEnable)
+			{
+				if (!bGantryEnable)
+				{
+					((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
+					bGantryEnable = TRUE;
+					Sleep(50);
+				}
+			}
+
+			return FALSE;
+		}
+
+		Sleep(30);
+	}
+
+	BOOL bRtn = TRUE;
+
+	if (!GetAmpEnable())
+	{
+		if (m_bGantryEnable)
+		{
+			if (bGantryEnable)
+			{
+				((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
+				bGantryEnable = FALSE;
+				Sleep(50);
+			}
+		}
+
+		ms = MC_Power(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, TRUE);
+
+		if (m_bGantryEnable)
+		{
+			if (!bGantryEnable)
+			{
+				((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
+				bGantryEnable = TRUE;
+				Sleep(50);
+			}
+		}
+
+		if (ms != MC_OK)
+		{
+			AfxMessageBox(_T("Error-SetAmpEnable()"));
+			return FALSE;
+		}
+		Sleep(100); // Fastek EasyServo Z축 서보 On시 Delay필요....
+	}
+
+	if (m_bGantryEnable)
+	{
+		if (!bGantryEnable)
+		{
+			((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
+			bGantryEnable = TRUE;
+			Sleep(50);
+		}
+	}
+
+	return bRtn;
+}
+
+BOOL CNmcAxis::ClearStatusGantry()
 {
 	MC_STATUS ms = MC_OK;
 	UINT32 state = 0x00000000;
@@ -153,16 +258,16 @@ BOOL CNmcAxis::ClearStatus()
 		Sleep(30);
 	}
 
-	ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
-	Sleep(30);
-
 	if (IsAmpFault())
 	{
-		//ms = (MC_STATUS)AmpFaultReset();
 		ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
+		Sleep(30);
 
 		if (ms != MC_OK)
+		{
+			AfxMessageBox(_T("Error-MC_Reset()"));
 			return FALSE;
+		}
 
 		Sleep(30);
 	}
@@ -171,11 +276,11 @@ BOOL CNmcAxis::ClearStatus()
 
 	if (!GetAmpEnable())
 	{
-		//bRtn = SetAmpEnable(TRUE);
 		ms = MC_Power(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, TRUE);
+
 		if (ms != MC_OK)
 		{
-			AfxMessageBox(_T("Error-SetAmpEnable()"));
+			AfxMessageBox(_T("Error-MC_Power()"));
 			return FALSE;
 		}
 		Sleep(100); // Fastek EasyServo Z축 서보 On시 Delay필요....
@@ -255,20 +360,6 @@ double CNmcAxis::GetCommandPosition()
 void CNmcAxis::SetCommandPosition(double dPos)
 {
 	SetPosition(dPos);
-
-	//if (GetCommandPosition() == dPos)
-	//	return;
-
-	//MC_STATUS ms = MC_OK;
-	//double dPulse = LenToPulse(dPos);
-
-	//// CommandPosition is read only on NMC. 
-	//ms = MC_WriteParameter(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, mcpCommandedPosition, dPulse);
-	//if (ms != MC_OK)
-	//{
-	//	AfxMessageBox(_T("Error-SetCommandPosition()"));
-	//	return;
-	//}
 }
 
 
@@ -283,29 +374,25 @@ BOOL CNmcAxis::SetPosition(double fPos)
 	int error = 0;
 	double dPos = LenToPulse(fPos);
 
-	//if (((CNmcDevice*)m_pParent)->m_bGantryEnabled && m_stParam.Motor.nAxisID == SCAN_AXIS)
-	//{
-	//	((CNmcDevice*)m_pParent)->GantryEnable(SCAN_AXIS, SCAN_S_AXIS, FALSE);
-	//	Sleep(50);
-
-	//	//ms = MC_SetPosition(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, false, mcImmediately);
-	//	//if (ms == MC_LIMIT_ERROR_PARAM_3)
-	//	//{
-	//	//	return FALSE;
-	//	//}
-	//	//Sleep(50);
-
-	//	((CNmcDevice*)m_pParent)->GantryEnable(SCAN_AXIS, SCAN_S_AXIS, TRUE);
-	//	Sleep(50);
-	//}
-	//else
+	if (m_bGantryEnable)
 	{
-		ms = MC_SetPosition(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, false, mcImmediately);
-		if (ms == MC_LIMIT_ERROR_PARAM_3)
-		{
-			return FALSE;
-		}
+		((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
+		Sleep(50);
 	}
+
+	ms = MC_SetPosition(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, false, mcImmediately);
+
+	if (m_bGantryEnable)
+	{
+		((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
+		Sleep(50);
+	}
+
+	if (ms == MC_LIMIT_ERROR_PARAM_3)
+	{
+		return FALSE;
+	}
+
 	return TRUE;
 }
 
@@ -320,8 +407,6 @@ double CNmcAxis::PulseToLen(double fData)
 	else
 		return -1.0;
 }
-
-
 
 
 
@@ -428,16 +513,23 @@ BOOL CNmcAxis::IsMotionDone()
 	MC_STATUS ms = MC_OK;
 	UINT32 state = 0x00000000;
 
-	ms = MC_ReadAxisStatus(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, &state);
-	if (ms != MC_OK)
+	if (m_bGantrySlave)
 	{
-		AfxMessageBox(_T("Error-IsMotionDone()"));
-		return FALSE; 
+		return IsMotionDoneGantrySlave();
 	}
-//	if ( !(state & mcContinuousMotion) && !(state & mcConstantVelocity) && !(state & mcAccelerating) && !(state & mcDecelerating) )
-	if ((state & mcMotionComplete) && !(state & mcConstantVelocity) && !(state & mcAccelerating) && !(state & mcDecelerating))
+	else
 	{
-		return TRUE;
+		ms = MC_ReadAxisStatus(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, &state);
+		if (ms != MC_OK)
+		{
+			AfxMessageBox(_T("Error-IsMotionDone()"));
+			return FALSE;
+		}
+		//	if ( !(state & mcContinuousMotion) && !(state & mcConstantVelocity) && !(state & mcAccelerating) && !(state & mcDecelerating) )
+		if ((state & mcMotionComplete) && !(state & mcConstantVelocity) && !(state & mcAccelerating) && !(state & mcDecelerating))
+		{
+			return TRUE;
+		}
 	}
 
 	return FALSE;
@@ -868,32 +960,19 @@ BOOL CNmcAxis::StartVelocityMove(double fVel, double fAcc)
 	if (fVel == INVALIDE_DOUBLE)		fVel = m_stParam.Speed.fVel;
 	if (fAcc == INVALIDE_DOUBLE)		fAcc = m_stParam.Speed.fAcc;
 
+	int nAxisId = m_stParam.Motor.nAxisID;
+	double dVel, dAcc;
+	INT nAccTime;
+
+	MC_STATUS mc = MC_OK;
+	MC_DIRECTION enDir = mcPositiveDirection;
+
 	if (fabs(fVel) > m_stParam.Speed.fMaxVel)
 	{
 		AfxMessageBox(_T("Exceed Maximum Speed"));
 		return FALSE;
 	}
 
-	if (!WaitUntilMotionDone(TEN_SECOND))
-	{
-		return FALSE;
-	}
-
-	int nAxisId = m_stParam.Motor.nAxisID;
-
-
-	if (IsAmpFault())
-	{
-		ClearStatus();
-		Sleep(30);
-	}
-
-
-	double dVel, dAcc;
-	INT nAccTime;
-
-	MC_STATUS err = MC_OK;
-	MC_DIRECTION enDir = mcPositiveDirection;
 	if (fVel < 0.0)
 	{
 		enDir = mcNegativeDirection;
@@ -903,14 +982,63 @@ BOOL CNmcAxis::StartVelocityMove(double fVel, double fAcc)
 	dVel = LenToPulse(fVel);
 	dAcc = LenToPulse(fAcc);
 
-	err = MC_MoveVelocity(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dVel, dAcc, dAcc, 0, enDir, mcAborting);
-
-	if (err != MC_OK)
+	if (m_bGantrySlave)
 	{
-		if (err & MC_LIMIT_POSITION_OVER)
+		CString msg;
+		char cstrErrorMsg[MAX_ERR_LEN];
+		double fPos, fTgtPos, fLength;
+
+		while (!IsMotionDoneGantrySlave())
+		{
+			Sleep(100);
+		}
+
+		if (enDir == mcNegativeDirection)
+			fPos = -1000.0;
+		else
+			fPos = 1000.0;
+
+		double dPos = LenToPulse(fPos);
+		double dJerkTime = GetAccTime(fVel, fAcc); //0.2; // [sec]
+		double dJerk = fabs(LenToPulse(fAcc / dJerkTime));
+
+		// absolute coordinate move
+		int nDispMode = 3; //3 : Yaw Diff. Display (Slave Axis - Virtual Axis)
+		mc = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, nDispMode);
+		if (mc != MC_OK)
+		{
+			SetEStop();
+			MC_GetErrorMessage(mc, MAX_ERR_LEN, cstrErrorMsg);
+			msg.Format(_T("Error - MC_ChangeGantryAlign :: 0x%08X, %s"), mc, CharToString(cstrErrorMsg));
+			AfxMessageBox(msg);
+
+			return FALSE;
+		}
+	}
+	else
+	{
+		if (!WaitUntilMotionDone(TEN_SECOND))
+		{
+			return FALSE;
+		}
+
+
+		if (IsAmpFault())
+		{
+			ClearStatus();
+			Sleep(30);
+		}
+
+		mc = MC_MoveVelocity(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dVel, dAcc, dAcc, 0, enDir, mcAborting);
+	}
+
+	if (mc != MC_OK)
+	{
+		if (mc & MC_LIMIT_POSITION_OVER)
 			return TRUE;
 		return FALSE;
 	}
+
 	return TRUE;
 }
 
@@ -1033,62 +1161,144 @@ BOOL CNmcAxis::StartPtPMotion(double fPos, double fVel, double fAcc, double fDec
 	}
 
 
-	if (bAbs)
+	if (m_bGantrySlave)
 	{
-		// absolute coordinate move
-		if (!bWait)
+		while (!IsMotionDoneGantrySlave())
 		{
-			ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcPositiveDirection, mcAborting);
-			if (ms != MC_OK)
+			Sleep(100);
+		}
+
+		int nDispMode = 3; //3 : Yaw Diff. Display (Slave Axis - Virtual Axis)
+
+		if (bAbs)
+		{
+			// absolute coordinate move
+			if (!bWait)
 			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error(001) - MC_MoveAbsolute :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
+				ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, nDispMode);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(007) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+
+					return FALSE;
+				}
+			}
+			else
+			{
+				ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, nDispMode);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(008) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+
+					return FALSE;
+				}
+
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
+
 			}
 		}
 		else
 		{
-			ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcPositiveDirection, mcAborting);
-			if (ms != MC_OK)
-			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error(002) - MC_MoveAbsolute :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
-			}
-			WaitUntilMotionMove(TEN_SECOND);
-			WaitUntilMotionDone(TEN_SECOND);
+			// incremental coordinate move
 
+			if (m_stParam.Motor.bType != SERVO)
+				dPos += GetCommandPosition();
+			else
+				dPos += GetActualPosition();
+
+			if (!bWait)
+			{
+				ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, nDispMode);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+
+					return FALSE;
+				}
+			}
+			else
+			{
+				ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, nDispMode);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+
+					return FALSE;
+				}
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
+
+			}
 		}
 	}
 	else
 	{
-		// incremental coordinate move
-		if (!bWait)
+		if (bAbs)
 		{
-			ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcAborting);
-			if (ms != MC_OK)
+			// absolute coordinate move
+			if (!bWait)
 			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
+				ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcPositiveDirection, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(001) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
+			}
+			else
+			{
+				ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcPositiveDirection, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(002) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
+
 			}
 		}
 		else
 		{
-			ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcAborting);
-			if (ms != MC_OK)
+			// incremental coordinate move
+			if (!bWait)
 			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
+				ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
 			}
-			WaitUntilMotionMove(TEN_SECOND);
-			WaitUntilMotionDone(TEN_SECOND);
+			else
+			{
+				ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
 
+			}
 		}
 	}
 
@@ -1437,7 +1647,10 @@ BOOL CNmcAxis::CheckEmgSwitch()
 BOOL CNmcAxis::StartHomeThread()
 {
 	m_bOrigin = FALSE;
-	m_ThreadTask.Start(GetSafeHwnd(), this, HomeThreadProc);// Start the thread
+	if(m_bGantrySlave)
+		m_ThreadTask.Start(GetSafeHwnd(), this, SlaveHomeThreadProc);// Start the thread
+	else
+		m_ThreadTask.Start(GetSafeHwnd(), this, HomeThreadProc);// Start the thread
 	return TRUE;
 }
 
@@ -1512,7 +1725,6 @@ BOOL CNmcAxis::ChkMotionAlarmCall(LPVOID lpContext)
 // Home thread body
 
 UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
-
 {
 	// Turn the passed in 'this' pointer back into a CProgressMgr instance
 	CNmcAxis* pThread = reinterpret_cast< CNmcAxis* >(lpContext);
@@ -1537,25 +1749,6 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 	CString strTitleMsg;
 	CString strMsg;
 
-	//float fEStopTime = pThread->GetEStopTime();
-	//double fSpeed, fMachineSpeed, fENewStopTime, dTempVal;
-	//double dResolution = pThread->GetPositionResolution(nMotorID);
-	//if (dResolution <= 0.01)
-	//{
-	//	fSpeed = 1.0 / dResolution; // [mm/s]
-	//	fMachineSpeed = pThread->m_pObjectMotor[nMotorID].Pulse2Len(fSpeed) / 2.0;
-	//	fENewStopTime = float(fMachineSpeed / 1000.0);
-	//	if (fENewStopTime<0.01)
-	//		fENewStopTime = 0.01;
-	//}
-	//else
-	//{
-	//	fMachineSpeed = (dResolution*1000.0) / 2.0; // [mm/s]
-	//	fENewStopTime = float(fMachineSpeed / 1000.0);
-	//	fENewStopTime = 0.05;
-	//}
-
-
 	double fSpeed, fMachineSpeed, fENewStopTime, dTempVal;
 	double dResolution = pThread->GetPosRes();
 	if (dResolution <= 0.01)
@@ -1578,13 +1771,8 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 	BOOL bChkState = FALSE;
 	pThread->m_nExeStatus = 0;
 
-	//strTitleMsg.Format(_T("%s %s"), pThread->m_stParam.Motor.sName, pGlobalView->GetLanguageString("MOTION", "ORIGIN_SEARCH"));
-	//strMsg.Format(_T("%s"), pGlobalView->GetLanguageString("MOTION", "MOTOR_POSITION_INITIALIZE"));
 	strTitleMsg.Format(_T("%s %s"), pThread->m_stParam.Motor.sName, _T("ORIGIN_SEARCH"));
 	strMsg.Format(_T("%s"), _T("MOTOR_POSITION_INITIALIZE"));
-	//pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_LTGREEN);
-	//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_LTGREEN, 3000);
-
 
 	CString strAxisName = pThread->m_stParam.Motor.sName;
 
@@ -1625,16 +1813,10 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 
 					if (pThread->m_stParam.Motor.bType == STEPPER) // 20180413-syd : Modified for Fastech synqnet servo pack.
 					{
-						//pThread->SetErrorLimitAction(MPIActionNONE);
-						//Sleep(30);
-						//pThread->SetCommandPosition(0.0);
-						//pThread->SetActualPosition(0.0);
 						pThread->SetPosition(0.0);
 						Sleep(30);
-						//pThread->Clear();
 						pThread->ClearStatus();
 						Sleep(30);
-						//pThread->m_pObjectMotor[nMotorID].Enable(TRUE);
 						pThread->SetAmpEnable(TRUE);
 						Sleep(30);
 					}
@@ -1655,13 +1837,7 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 
 							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
 							if (pParent->m_nInterlockStatus == 0)
-								//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-							//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-							//pThread->m_bHomeThreadAlive = FALSE;
-							//pParent->m_sMotionError = strMsg; // 20180517 - syd
-							//pParent->m_nMotError = 3;
-							//pParent->m_nInterlockStatus = TRUE;
-							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
 
 							return 0;
 						}
@@ -1670,25 +1846,9 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 
 				break;
 			case 1:
-				//if (pGlobalDoc->m_bMotionAlarm || pGlobalDoc->m_bUseInlineAutomation)
-				//{
-				//	if (pThread->GetState() == MPIStateERROR || !pThread->GetAmpEnable()) // 20180413-syd : Modified for Fastech synqnet servo pack.
-				//	{
-				//		//strMsg.Format(_T("Axis #%d %s"), nAxisID, _T("Failed that Motor servo On."));
-				//		//pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-				//		//pThread->m_bHomeThreadAlive = FALSE;
-				//		//pParent->m_sMotionError = strMsg;	// 20180517 - syd
-				//		//pParent->m_nMotError = 2;
-				//		//pParent->m_nInterlockStatus = TRUE;
-				//		pThread->SetAlarmCall(lpContext, 2, _T("Failed that Motor servo On."));
-
-				//		return 0;
-				//	}
-				//}
 				if (pThread->GetState() == MPIStateERROR || !pThread->GetAmpEnable())
 				{
 					strMsg.Format(_T("Axis #%d %s"), nAxisID, _T("Failed that Motor servo On."));
-					//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
 					pThread->SetAlarmCall(lpContext, 2, _T("Failed that Motor servo On."));
 					return 0;
 				}
@@ -2036,8 +2196,9 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 				break;
 			case 6:
 				bMotDone = pThread->IsMotionDone();
+				bLimitEvent = pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir);
 
-				if (bMotDone || (bLimitEvent = pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir)) )
+				if (bMotDone || bLimitEvent)
 				{
 					if (bLimitEvent)
 					{
@@ -2840,21 +3001,6 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 				pThread->AmpFaultReset();
 				pThread->SetOriginPos();
 
-				//if (nMotorID == FOCUS_AXIS)
-				//{
-				//	if (pThread->StartPtPMove(-30,
-				//		pThread->m_stParam.Home.f2ndSpd,
-				//		pThread->m_stParam.Home.fAcc,
-				//		pThread->m_stParam.Home.fAcc,
-				//		ABS,
-				//		WAIT))
-				//		//OPTIMIZED,
-				//		//S_CURVE))
-				//	{
-
-				//	}
-				//}
-
 				pThread->m_nExeStatus++;
 				nOriginTick = GetTickCount64();
 				break;
@@ -2871,12 +3017,6 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 
 						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
 						if (pParent->m_nInterlockStatus == 0)
-							//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-						//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-						//pThread->m_bHomeThreadAlive = FALSE;
-						//pParent->m_sMotionError = strMsg; // 20180517 - syd
-						//pParent->m_nMotError = 3;
-						//pParent->m_nInterlockStatus = TRUE;
 						pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
 
 						return 0;
@@ -2897,12 +3037,6 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 
 							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
 							if (pParent->m_nInterlockStatus == 0)
-								//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-							//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-							//pThread->m_bHomeThreadAlive = FALSE;
-							//pParent->m_sMotionError = strMsg; // 20180517 - syd
-							//pParent->m_nMotError = 3;
-							//pParent->m_nInterlockStatus = TRUE;
 							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
 
 							return 0;
@@ -2911,162 +3045,113 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 					}
 				}
 
-				//if (pThread->m_stParam.Motor.bType == STEPPER)
-				//	pThread->m_pObjectMotor[nMotorID].SetErrorLimitAction(MPIActionABORT);
-
-
-
 				pThread->m_nExeStatus++;
 				nOriginTick = GetTickCount64();
 				break;
 
 			case 16:
-				//strMsg.Format(_T("%s"), pGlobalView->GetLanguageString("MOTION", "FINISH_ORIGIN_RETURN"));
-				//pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_LTGREEN);		//20110114 hjc mod
 				strMsg.Format(_T("%s"), _T("FINISH_ORIGIN_RETURN"));
-				//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_LTGREEN, 3000);
 				pThread->m_bOrigin = TRUE;
 				pParent->m_bOrigin[nAxisID] = TRUE;
 				break;
 			}
-//
-////#ifdef THETA_AXIS
-////			if (bClampError || pParent->m_nInterlockStatus || (pGlobalDoc->m_bSaftyAreaSensorStatus || pGlobalView->m_bSwSafetyArea || pGlobalView->m_pIO->CheckSaftyOnlyBit()) || pGlobalView->m_pIO->CheckEmgSwitch() || pGlobalView->m_pIO->CheckIBIDoorStatusNoMessage() == 0)
-////			{
-////#else
-//			//if (bClampError || pParent->m_nInterlockStatus || (pGlobalDoc->m_bSaftyAreaSensorStatus || pGlobalView->m_bSwSafetyArea || pGlobalView->m_pIO->CheckSaftyOnlyBit()) || pGlobalView->m_pIO->CheckEmgSwitch() || pGlobalView->m_pIO->CheckIBIDoorStatusNoMessage() == 0)
-//			//{
-////#endif
-////
-////#if CUSTOMER_COMPANY != SUMITOMO	//120822 hjc add
-////				pGlobalView->TowerLampControl(TOWER_LAMP_RED, ON);	// 20130726 ljh
-////#else
-////				pGlobalView->TowerLampControl(TOWER_LAMP_YELLOW, ON);	// 20130726 ljh
-////#endif
-//				//pGlobalView->m_pIO->BuzzerOnOff(ON);
-//
-//				pThread->m_bOrigin = FALSE;
-//
-//				pThread->SetEStop();
-//
-//				//if (AoiParam()->m_bRTRDoorInterlock)
-//				//{
-//				//	if (pGlobalView->GetSafeHwnd())
-//				//		strMsg = _T("[MSG564] ") + pGlobalView->GetMultiLangString(pGlobalDoc->m_nSelectedLanguage, "SAFETY SENSOR", "MSG8");
-//
-//				//	pParent->m_nInterlockType = FRONT_SIDE_DOOR_SENSOR;
-//				//}
-//
-//				//if ((pGlobalDoc->m_bUseSaftyAreaSensor && pGlobalView->m_pIO->CheckSaftyOnlyBit()))
-//				//{
-//				//	pParent->m_nInterlockType = SAFETY_AREA_SENSOR;
-//				//	if (pGlobalView->GetSafeHwnd())
-//				//		strMsg = _T("[MSG568] ") + pGlobalView->GetMultiLangString(pGlobalDoc->m_nSelectedLanguage, "SAFETY SENSOR", "MSG14");
-//				//}
-//
-//				//if (pGlobalDoc->m_bEmergencyStatus)
-//				//{
-//				//	pParent->m_nInterlockType = EMERGENCY_STOP;
-//
-//				//	if (pGlobalView->GetSafeHwnd())
-//				//		strMsg = _T("[MSG534] ") + pGlobalView->GetMultiLangString(pGlobalDoc->m_nSelectedLanguage, "SAFETY SENSOR", "MSG2");
-//				//}
-//
-//				//if (!pGlobalView->m_pIO->CheckIBIDoorStatusNoMessage())
-//				//{
-//				//	pParent->m_nInterlockType = DOOR_OPEN;
-//				//	pGlobalView->m_pIO->CheckIBIDoorStatus(strMsg);
-//				//}
-//
-//				if (strMsg.IsEmpty())
-//				{
-//					if (pParent->m_nMotError == 1)
-//					{
-//						strMsg.Format(_T("Motor_%s : %s"), strAxisName, _T("Pos and Neg Limit Sensor Error!!! Please restart the AOI"));
-//					}
-//					else  if (pParent->m_nMotError == 2)
-//					{
-//						strMsg.Format(_T("Axis #%s %s"), strAxisName, _T("Failed that Motor servo On."));
-//					}
-//					else if (pParent->m_nMotError == 3)
-//					{
-//						strMsg.Format(_T("Error - Motor_%s %s"), strAxisName, _T("can't escape Limit Sensor!\r\nPlease restart the AOI"));
-//					}
-//					else if (pParent->m_nMotError == 4)
-//					{
-//						strMsg.Format(_T("%s %s"), strAxisName, _T("SearchIndex VMove Error!!! Please re start the AOI"));
-//					}
-//				}
-//
-//				if (strMsg.IsEmpty())
-//					strMsg.Format(_T("%s"), _T("Interlock Status!!! Please re start the AOI"));
-//
-//				if (pParent->m_nInterlockStatus == 0)
-//					//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-//					//pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-//
-//				pThread->m_bHomeThreadAlive = FALSE;
-//
-//				pParent->m_nInterlockStatus = TRUE;
-//				return 0;;
-//			}
-
 		}
 	}
-/*	else if (pThread->m_stParam.Home.bIndex == 1)
+
+	pThread->m_bHomeThreadAlive = FALSE;
+
+	return 0;
+}
+
+UINT CNmcAxis::SlaveHomeThreadProc(LPVOID lpContext)
+{
+	// Turn the passed in 'this' pointer back into a CProgressMgr instance
+	CNmcAxis* pThread = reinterpret_cast< CNmcAxis* >(lpContext);
+	CNmcDevice* pParent = (CNmcDevice*)(pThread->m_pParent);
+
+
+	DWORD dwTimePeriod = 10; // 10ms sec sleep
+	DWORD dwST, dwEd;
+	pThread->m_bHomeThreadAlive = TRUE;
+
+	BOOL bMotDone, bInPos;
+
+	int nAxisID = pThread->m_stParam.Motor.nAxisID;
+	int nMotorID = pThread->m_stParam.Motor.nAxisID;
+
+	// Software Limit값 임시 퇴피.
+	double fPrevPosLimit = pThread->m_stParam.Motor.fPosLimit;
+	double fPrevNegLimit = pThread->m_stParam.Motor.fNegLimit;
+
+	BOOL bError = 0;
+
+	CString strTitleMsg;
+	CString strMsg;
+
+
+	double fSpeed, fMachineSpeed, fENewStopTime, dTempVal;
+	double dResolution = pThread->GetPosRes();
+	if (dResolution <= 0.01)
 	{
+		fSpeed = 1.0 / dResolution; // [mm/s]
+		fMachineSpeed = pThread->PulseToLen(fSpeed) / 2.0;
+		fENewStopTime = float(fMachineSpeed / 1000.0);
+		if (fENewStopTime<0.01)
+			fENewStopTime = 0.01;
+	}
+	else
+	{
+		fMachineSpeed = (dResolution*1000.0) / 2.0; // [mm/s]
+		fENewStopTime = float(fMachineSpeed / 1000.0);
+		fENewStopTime = 0.05;
+	}
+
+	BOOL bLimitEvent = FALSE;
+	BOOL bChkState = FALSE;
+	pThread->m_nExeStatus = 0;
+
+	strTitleMsg.Format(_T("%s %s"), pThread->m_stParam.Motor.sName, _T("ORIGIN_SEARCH"));
+	strMsg.Format(_T("%s"), _T("MOTOR_POSITION_INITIALIZE"));
+
+
+	CString strAxisName = pThread->m_stParam.Motor.sName;
+
+	double dStartPos = 0.0;
+	double dCurrPos = 0.0;
+	BOOL bSixStepTrigger = 0;
+	ULONGLONG nOriginTick = GetTickCount64();
+	if (pThread->m_stParam.Home.bIndex == 0)
+	{
+		nOriginTick = GetTickCount64();
 		while (!pThread->m_bOrigin && WAIT_OBJECT_0 != ::WaitForSingleObject(pThread->m_ThreadTask.GetShutdownEvent(), dwTimePeriod))
 		{
-
-			if (pGlobalDoc->m_bMotionAlarm)
+			if (pParent->m_bEscape)
 			{
-				if (pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir) && pThread->CheckLimitSwitch(-pThread->m_stParam.Home.nDir))
-				{	 // 20180427 - syd
-					bError = TRUE;
-					pThread->SetPosSWLimitAction(MPIActionE_STOP);
-					pThread->SetNegSWLimitAction(MPIActionE_STOP);
-					pThread->SetPosHWLimitAction(MPIActionE_STOP);
-					pThread->SetNegHWLimitAction(MPIActionE_STOP);
+				bError = TRUE;
+				pThread->SetEStop();
 
-					//strMsg.Format(_T("Motor_%d : %s"), nMotorID, _T("Pos and Neg Limit Sensor Error!!! Please restart the AOI"));
-					//if (pParent->m_nInterlockStatus == 0)
-					//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-					//pThread->m_bHomeThreadAlive = FALSE;
-					//pParent->m_sMotionError = strMsg; // 20180517 - syd
-					//pParent->m_nMotError = 1;
-					//pParent->m_nInterlockStatus = TRUE;
-					pThread->SetAlarmCall(lpContext, 1, _T("Pos and Neg Limit Sensor Error!!! Please restart the AOI"));
+				strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Escape key Detected.. please re try Machine Ready"));
+				if (pParent->m_nInterlockStatus == 0)
+					pThread->SetAlarmCall(lpContext, 3, _T("Escape key Detected.. please retry Machine Ready"));
 
-					return 0;
-				}
+				return 0;
 			}
-
-			BOOL bClampError = 0;
-			if (AoiParam()->m_bUseTableClamp)
-			{
-				bClampError = GetClampObject()->ClampStatusError();
-			}
-
 			Sleep(10);
+
 			switch (pThread->m_nExeStatus)
 			{
 			case 0:
 				pThread->m_bOrigin = FALSE;
 				if (pThread->IsMotionDone())
 				{
-					// software limit value 
-					pThread->m_pObjectMotor[nMotorID].ChangePosSWLimitValue(1000.0);
-					pThread->m_pObjectMotor[nMotorID].ChangeNegSWLimitValue(-1000.0);
+					// software limit action & value 
+					pThread->SetSlaveSoftwareLimit(FALSE);
 
-					pThread->m_pObjectMotor[nMotorID].SetPosSWLimitAction(MPIActionNONE);
-					pThread->m_pObjectMotor[nMotorID].SetNegSWLimitAction(MPIActionNONE);
+					pThread->SetPosHWLimitAction(MPIActionNONE);
+					pThread->SetNegHWLimitAction(MPIActionNONE);
 
 					if (pThread->m_stParam.Motor.bType == STEPPER) // 20180413-syd : Modified for Fastech synqnet servo pack.
 					{
-						//pThread->m_pObjectMotor[nMotorID].SetErrorLimitAction(MPIActionNONE);
-						Sleep(30);
-						//pThread->m_pObjectAxis[nAxisID].SetCmdPos(0.0);
-						//pThread->m_pObjectAxis[nAxisID].SetActPos(0.0);
 						pThread->SetPosition(0.0);
 						Sleep(30);
 						pThread->ClearStatus();
@@ -3075,33 +3160,44 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 						Sleep(30);
 					}
 					pThread->m_nExeStatus++;
+					nOriginTick = GetTickCount64();
 				}
-				break;
-			case 1:
-				if (pGlobalDoc->m_bMotionAlarm)
+				else
 				{
-					if (pThread->GetState() == MPIStateERROR || !pThread->GetAmpEnable()) // 20180413-syd : Modified for Fastech synqnet servo pack.
+					if (pThread->GetState() == MPIStateERROR)
 					{
-						//strMsg.Format(_T("Axis #%d %s"), nAxisID, _T("Failed that Motor servo On."));
-						//pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-						//pThread->m_bHomeThreadAlive = FALSE;
-						//pParent->m_sMotionError = strMsg; // 20180517 - syd
-						//pParent->m_nMotError = 2;
-						//pParent->m_nInterlockStatus = TRUE;
-						pThread->SetAlarmCall(lpContext, 2, _T("Failed that Motor servo On."));
+						pThread->ClearStatus();
+						Sleep(100);
 
-						return 0;
-						//if (!pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir) && !pThread->CheckLimitSwitch(-pThread->m_stParam.Home.nDir))
-						//	break;
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
 					}
 				}
+
+				break;
+			case 1:
+				if (pThread->GetState() == MPIStateERROR || !pThread->GetAmpEnable())
+				{
+					strMsg.Format(_T("Axis #%d %s"), nAxisID, _T("Failed that Motor servo On."));
+					pThread->SetAlarmCall(lpContext, 2, _T("Failed that Motor servo On."));
+					return 0;
+				}
 				pThread->m_nExeStatus++;
+				nOriginTick = GetTickCount64();
 				break;
 			case 2:
 
 				//1. 원점 limit센서가 check된 상태에서는 일단 그센서위치를 벗엉毆.
-
-				if (pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir))
+				if (pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir))//GetThetaLimitInputForGm
 				{
 					if (pThread->m_stParam.Home.nDir == PLUS)
 						pThread->SetPosHWLimitAction(MPIActionNONE);
@@ -3112,24 +3208,56 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 					Sleep(100);
 
 					if (pThread->GetState() == MPIStateERROR)
+					{
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
 						break;
+					}
 
 					if (!pThread->GetAmpEnable())
 					{
 						pThread->SetAmpEnable(TRUE);
 						Sleep(50);
 						if (!pThread->GetAmpEnable())
+						{
+							if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+							{
+								bError = TRUE;
+								pThread->SetEStop();
+
+								strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+								if (pParent->m_nInterlockStatus == 0)
+									pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+								return 0;
+							}
 							break;
+						}
 					}
 
 					if (dStartPos == 0.0)
 						dStartPos = pThread->GetActualPosition(); // 20180427 - syd
 
-					pThread->VMove(pThread->m_stParam.Home.f2ndSpd*(-(double)pThread->m_stParam.Home.nDir), pThread->m_stParam.Home.fAcc);
+					if (pThread->IsMotionDone())
+					{
+						pThread->VMove(pThread->m_stParam.Home.f2ndSpd*(double)(-pThread->m_stParam.Home.nDir), pThread->m_stParam.Home.fAcc);
+						Sleep(60);
+					}
+
 					pThread->m_nExeStatus++;
+					nOriginTick = GetTickCount64();
 					bChkState = FALSE;
 				}
-				else if (pThread->CheckLimitSwitch(-pThread->m_stParam.Home.nDir))
+				else if (pThread->CheckLimitSwitch(-pThread->m_stParam.Home.nDir))//GetThetaLimitInputForGm
 				{
 					if (-pThread->m_stParam.Home.nDir == PLUS)
 						pThread->SetPosHWLimitAction(MPIActionNONE);
@@ -3140,73 +3268,83 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 					Sleep(100);
 
 					if (pThread->GetState() == MPIStateERROR)
+					{
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
 						break;
+					}
 
 					if (!pThread->GetAmpEnable())
 					{
 						pThread->SetAmpEnable(TRUE);
 						Sleep(50);
 						if (!pThread->GetAmpEnable())
+						{
+							if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+							{
+								bError = TRUE;
+								pThread->SetEStop();
+
+								strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+								if (pParent->m_nInterlockStatus == 0)
+									pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+								return 0;
+							}
 							break;
+						}
 					}
 
 					if (dStartPos == 0.0)
 						dStartPos = pThread->GetActualPosition(); // 20180427 - syd
 
-					pThread->VMove(pThread->m_stParam.Home.f2ndSpd*(double)pThread->m_stParam.Home.nDir, pThread->m_stParam.Home.fAcc);
+					if (pThread->IsMotionDone())
+					{
+						pThread->VMove(pThread->m_stParam.Home.f2ndSpd*pThread->m_stParam.Home.nDir, pThread->m_stParam.Home.fAcc);
+						Sleep(60);
+					}
 					pThread->m_nExeStatus++;
+					nOriginTick = GetTickCount64();
 					bChkState = FALSE;
 				}
 				else
 				{
 					pThread->SetPosHWLimitAction(MPIActionE_STOP);
 					pThread->SetNegHWLimitAction(MPIActionE_STOP);
+
+
 					pThread->m_nExeStatus = 5;
+					nOriginTick = GetTickCount64();
 					bChkState = TRUE;
 				}
 				break;
-			case 3: //20100507-syd
-				if (!pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir) && !pThread->CheckLimitSwitch(-pThread->m_stParam.Home.nDir))
+			case 3:
+				if (!pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir) && !pThread->CheckLimitSwitch(-pThread->m_stParam.Home.nDir))//GetThetaLimitInputForGm
 				{
 					dStartPos = 0.0;
 					Sleep(100);
 					pThread->SetEStop();
 					pThread->m_nExeStatus++;
+					nOriginTick = GetTickCount64();
 				}
 				else
 				{
-					if (pGlobalDoc->m_bMotionAlarm)
-					{
-						if (pThread->m_stParam.Home.fEscLen < 0.0)
-							dTempVal = -1.0*pThread->m_stParam.Home.fEscLen;
-						else
-							dTempVal = pThread->m_stParam.Home.fEscLen;
-						dCurrPos = pThread->GetActualPosition(); // 20180427 - syd
-						if (dCurrPos - dStartPos > dTempVal || dStartPos - dCurrPos > dTempVal)
-						{	 // 20180427 - syd
-							bError = TRUE;
-							pThread->SetEStop();
-
-							//if (strMsg.IsEmpty())
-							//	strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("can't escape Limit Sensor!\r\nPlease restart the AOI"));
-							//if (pParent->m_nInterlockStatus == 0)
-							//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-							//pThread->m_bHomeThreadAlive = FALSE;
-							//pParent->m_sMotionError = strMsg; // 20180517 - syd
-							//pParent->m_nMotError = 3;
-							//pParent->m_nInterlockStatus = TRUE;
-							pThread->SetAlarmCall(lpContext, 3, _T("can't escape Limit Sensor!\r\nPlease restart the AOI"));
-
-							return 0;;
-						}
-					}
-
 					Sleep(30);
 					if (pThread->GetState() == MPIStateERROR)
 					{
 						pThread->ClearStatus();
 						Sleep(100);
 						pThread->m_nExeStatus = 2;
+						nOriginTick = GetTickCount64();
 					}
 				}
 
@@ -3216,51 +3354,108 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 				{
 					pThread->ClearStatus();
 					Sleep(100);
+
 					if (pThread->GetState() == MPIStateERROR)
+					{
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
 						break;
+					}
 
 					pThread->SetPosHWLimitAction(MPIActionE_STOP);
 					pThread->SetNegHWLimitAction(MPIActionE_STOP);
 					pThread->m_nExeStatus++;
+					nOriginTick = GetTickCount64();
+				}
+				else
+				{
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
+					}
 				}
 				break;
 			case 5:
 				//2. -축을 제외한 다른위치에 모타가 있을때 .
 				// 원점 복귀 방향으로 움직이면서 일단 원점 센서를 찾음 .
 
-				strMsg.Format(_T("%s"), pGlobalView->GetLanguageString("MOTION", "STEP2_MOVE_ORIGIN"));
-				pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_LTGREEN);
+				strMsg.Format(_T("%s"), _T("STEP2_MOVE_ORIGIN"));
 
 				pThread->ClearStatus();
 				Sleep(100);
+
 				if (pThread->GetState() == MPIStateERROR)
+				{
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
+					}
 					break;
+				}
 
 				if (!pThread->GetAmpEnable())
 				{
 					pThread->SetAmpEnable(TRUE);
 					Sleep(50);
 					if (!pThread->GetAmpEnable())
+					{
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
 						break;
+					}
 				}
 
-				if (pThread->VMove(pThread->m_stParam.Home.f1stSpd*(double)pThread->m_stParam.Home.nDir, pThread->m_stParam.Home.fAcc))
+				if (pThread->VMove(pThread->m_stParam.Home.f1stSpd*pThread->m_stParam.Home.nDir, pThread->m_stParam.Home.fAcc))
 				{
 					pThread->m_nExeStatus++;
+					nOriginTick = GetTickCount64();
 					bChkState = FALSE;
+					Sleep(60);
 				}
 				else
 				{
-					pThread->m_nExeStatus = 0;
+					nOriginTick = GetTickCount64();
+					pThread->m_nExeStatus++;
 				}
 				break;
 			case 6:
 				bMotDone = pThread->IsMotionDone();
+				bLimitEvent = pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir);
 
-				if (bMotDone)
+				if (bMotDone || bLimitEvent)//GetThetaLimitInputForGm
 				{
-					bLimitEvent = pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir);
-
 					if (bLimitEvent)
 					{
 						Sleep(100);
@@ -3272,8 +3467,23 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 						pThread->ClearStatus();
 						Sleep(100);
 						if (pThread->GetState() == MPIStateERROR)
+						{
+							if (GetTickCount64() - nOriginTick >= 10000)
+							{
+								bError = TRUE;
+								pThread->SetEStop();
+
+								strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+								if (pParent->m_nInterlockStatus == 0)
+									pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+								return 0;
+							}
+
 							break;
+						}
 						pThread->m_nExeStatus++;
+						nOriginTick = GetTickCount64();
 					}
 					else
 					{
@@ -3284,32 +3494,91 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 								pThread->SetPosHWLimitAction(MPIActionNONE);
 							else
 								pThread->SetNegHWLimitAction(MPIActionNONE);
+
 							pThread->ClearStatus();
 							Sleep(100);
 							if (pThread->GetState() == MPIStateERROR)
+							{
+								if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+								{
+									bError = TRUE;
+									pThread->SetEStop();
+
+									strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+									if (pParent->m_nInterlockStatus == 0)
+										pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+									return 0;
+								}
 								break;
+							}
 							pThread->m_nExeStatus++;
+							nOriginTick = GetTickCount64();
 						}
+						//else
+						//	pThread->m_nExeStatus--; // VMove to Home direction.
+					}
+				}
+				else
+				{
+					//2분 이내에 원점복귀가 되지 않으면 알람 처리
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND * 12)
+					{
+						nOriginTick = GetTickCount64();
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
 					}
 				}
 				break;
 			case 7:
 				pThread->ClearStatus();
 				Sleep(100);
+
 				if (pThread->GetState() == MPIStateERROR)
+				{
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
+					}
 					break;
+				}
 
 				if (!pThread->GetAmpEnable())
 				{
 					pThread->SetAmpEnable(TRUE);
 					Sleep(100);
 					if (!pThread->GetAmpEnable())
+					{
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
 						break;
+					}
 				}
 
 				//3. Negative limit가 check된 상태에서 일단 일정위치 만큼 +쪽으로 센서위치를 벗엉救다.
-				strMsg.Format(_T("%s"), pGlobalView->GetLanguageString("MOTION", "STEP3_ESCAPE_ORIGIN"));
-				pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_LTGREEN);
+				strMsg.Format(_T("%s"), _T("STEP3_ESCAPE_ORIGIN"));
 
 				//3. Negative limit가 check된 상태에서 일단 일정위치 만큼 +쪽으로 센서위치를 벗엉毆 .
 				if (pThread->m_stParam.Home.fEscLen < 0.0)
@@ -3317,35 +3586,52 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 				else
 					dTempVal = pThread->m_stParam.Home.fEscLen;
 
-				if (pThread->Move(dTempVal*(-(double)pThread->m_stParam.Home.nDir),
+				pThread->ClearStatus();
+				Sleep(100);
+
+				if (pThread->StartPtPMove(dTempVal*(-(double)pThread->m_stParam.Home.nDir),
 					pThread->m_stParam.Home.f2ndSpd,
 					pThread->m_stParam.Home.fAcc,
 					pThread->m_stParam.Home.fAcc,
 					INC,
-					NO_WAIT,
-					OPTIMIZED,
-					S_CURVE))
+					NO_WAIT))
 				{
 					Sleep(100);
 					pThread->m_nExeStatus++;
+					nOriginTick = GetTickCount64();
 					bChkState = TRUE;
 					dwST = GetTickCount();
 				}
 				else
+				{
 					bError = TRUE;
+
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
+					}
+				}
+
 				break;
 			case 8:
 				bMotDone = pThread->IsMotionDone();
 				bInPos = pThread->IsInPosition();
 
-				if (GetTickCount() - dwST > 3000)
+				if (GetTickCount() - dwST > TEN_SECOND)
 				{
 					bMotDone = TRUE;
 				}
 
 				if (bMotDone && bInPos)
 				{
-					bLimitEvent = pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir);
+					bLimitEvent = pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir);//GetThetaLimitInputForGm
 
 					if (bLimitEvent)
 					{
@@ -3359,13 +3645,30 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 							pThread->ClearStatus();
 							Sleep(100);
 							if (pThread->GetState() == MPIStateERROR)
+							{
+								pThread->ClearStatus();
+								Sleep(100);
+								if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+								{
+									bError = TRUE;
+									pThread->SetEStop();
+
+									strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+									if (pParent->m_nInterlockStatus == 0)
+										pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+									return 0;
+								}
 								break;
+							}
 						}
-						pThread->m_nExeStatus = 7;
+						pThread->m_nExeStatus = 7; // StartPtPMove : Escapte Home senser...
+						nOriginTick = GetTickCount64();
 					}
 					else
 					{
 						Sleep(100);
+
 						if (pThread->m_stParam.Home.nDir == PLUS)
 							pThread->SetPosHWLimitAction(MPIActionE_STOP);
 						else
@@ -3376,11 +3679,42 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 							pThread->ClearStatus();
 							Sleep(100);
 							if (pThread->GetState() == MPIStateERROR)
+							{
+								pThread->ClearStatus();
+								Sleep(100);
+								if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+								{
+									bError = TRUE;
+									pThread->SetEStop();
+
+									strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+									if (pParent->m_nInterlockStatus == 0)
+										pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+									return 0;
+								}
 								break;
+							}
 						}
 
 						pThread->SetEStopRate((float)fENewStopTime);
 						pThread->m_nExeStatus++;
+						nOriginTick = GetTickCount64();
+
+					}
+				}
+				else
+				{
+					if (GetTickCount64() - nOriginTick >= 12 * TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
 					}
 				}
 
@@ -3394,27 +3728,54 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 				pThread->ClearStatus();
 				Sleep(100);
 				if (pThread->GetState() == MPIStateERROR)
+				{
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
+					}
 					break;
+				}
 
 				if (!pThread->GetAmpEnable())
 				{
 					pThread->SetAmpEnable(TRUE);
 					Sleep(50);
 					if (!pThread->GetAmpEnable())
+					{
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
 						break;
+					}
 				}
 
-				strMsg.Format(_T("%s"), pGlobalView->GetLanguageString("MOTION", "STEP4_ORIGIN_RETURN"));
-				pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_LTGREEN);
-
-				if (pThread->VMove(fMachineSpeed*(double)pThread->m_stParam.Home.nDir, 10.0*fMachineSpeed))
+				strMsg.Format(_T("%s"), _T("STEP4_ORIGIN_RETURN"));
+				if (pThread->VMove(fMachineSpeed*pThread->m_stParam.Home.nDir, 10.0*fMachineSpeed))
 				{
+					Sleep(60);
 					pThread->m_nExeStatus++;
 					bChkState = FALSE;
+					nOriginTick = GetTickCount64();
 				}
 				else
 				{
 					pThread->m_nExeStatus = 0;
+					nOriginTick = GetTickCount64();
 				}
 				break;
 			case 10:
@@ -3422,7 +3783,7 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 
 				if (bMotDone)
 				{
-					bLimitEvent = pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir);
+					bLimitEvent = pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir);//GetThetaLimitInputForGm
 
 					if (bLimitEvent)
 					{
@@ -3434,12 +3795,26 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 						pThread->ClearStatus();
 						Sleep(100);
 						if (pThread->GetState() == MPIStateERROR)
-							break;
+						{
+							pThread->ClearStatus();
+							Sleep(100);
+							if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+							{
+								bError = TRUE;
+								pThread->SetEStop();
 
-						//pThread->m_pObjectAxis[nAxisID].SetCmdPos(0.0);
-						//pThread->m_pObjectAxis[nAxisID].SetActPos(0.0);
+								strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+								if (pParent->m_nInterlockStatus == 0)
+									pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+								return 0;
+							}
+							break;
+						}
+
 						pThread->SetPosition(0.0);
 						pThread->m_nExeStatus++;
+						nOriginTick = GetTickCount64();
 					}
 					else
 					{
@@ -3450,243 +3825,362 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 								pThread->SetPosHWLimitAction(MPIActionNONE);
 							else
 								pThread->SetNegHWLimitAction(MPIActionNONE);
+
 							pThread->ClearStatus();
 							Sleep(100);
 							if (pThread->GetState() == MPIStateERROR)
-								break;
+							{
+								if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+								{
+									bError = TRUE;
+									pThread->SetEStop();
 
-							//pThread->m_pObjectAxis[nAxisID].SetCmdPos(0.0);
-							//pThread->m_pObjectAxis[nAxisID].SetActPos(0.0);
+									strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+									if (pParent->m_nInterlockStatus == 0)
+										pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+									return 0;
+								}
+								break;
+							}
 							pThread->SetPosition(0.0);
 							pThread->m_nExeStatus++;
-						}
-					}
-				}
-				break;
-
-			case 11:
-				pThread->SetIndexConfig();
-				pThread->m_nExeStatus++;
-				break;
-			case 12:
-				pThread->EnableIndex(TRUE);
-				pThread->m_nExeStatus++;
-				break;
-			case 13:
-				if (1)
-				{
-					double dIndexHomeSpeed = pThread->m_stParam.Home.f2ndSpd;
-
-					double dMotionResolution = ((CZmpControl*)pThread->m_pParent)->m_pParamMotor[nMotorID].fLeadPitch / ((CZmpControl*)pThread->m_pParent)->m_pParamMotor[nMotorID].nEncPulse;
-
-					dIndexHomeSpeed = pThread->GetIndexHomeVelocity(0.0005, dMotionResolution * 1000);
-
-					dIndexHomeSpeed = g_max(0, g_min(pThread->m_stParam.Home.f1stSpd, dIndexHomeSpeed));
-
-					strMsg.Format(_T("Index Home Speed : %.3f axis:%s"), dIndexHomeSpeed, pThread->m_pObjectAxis[nMotorID].m_AxisParam.sName);
-					pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_LTGREEN);
-
-					pThread->ClearStatus();
-					Sleep(100);
-
-					if (pThread->m_stParam.Home.nDir == 1)
-						bLimitEvent = pThread->m_pObjectAxis[nAxisID].IsPosHWLimit();
-					else
-						bLimitEvent = pThread->m_pObjectAxis[nAxisID].IsNegHWLimit();
-
-					if (bLimitEvent)
-					{
-						if (pThread->m_stParam.Home.nDir == 1)
-						{
-							pThread->m_pObjectMotor[nAxisID].SetPosSWLimitAction(MPIActionNONE);
-							pThread->m_pObjectMotor[nAxisID].SetPosHWLimitAction(MPIActionNONE);
+							nOriginTick = GetTickCount64();
 						}
 						else
-						{
-							pThread->m_pObjectMotor[nAxisID].SetNegSWLimitAction(MPIActionNONE);
-							pThread->m_pObjectMotor[nAxisID].SetNegHWLimitAction(MPIActionNONE);
-						}
+							pThread->m_nExeStatus--;
 					}
-
-					Sleep(100);
-
-					if (pThread->VMove(dIndexHomeSpeed*(-(double)pThread->m_stParam.Home.nDir), 10.0*dIndexHomeSpeed))
-					{
-						BOOL bSearchSuccess = 0;
-						bSearchSuccess = pThread->SearchIndex();
-
-						pThread->EnableIndex(FALSE);
-
-						pThread->m_nExeStatus = 14;
-						bChkState = FALSE;
-					}
-					else
+				}
+				else
+				{
+					if (GetTickCount64() - nOriginTick >= 12 * TEN_SECOND)
 					{
 						bError = TRUE;
-						bChkState = TRUE;
+						pThread->SetEStop();
 
-						//strMsg.Format(_T("%s"), _T("SearchIndex VMove Error!!! Please re start the AOI"));
-						//pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-						//pThread->m_bHomeThreadAlive = FALSE;
-						//pParent->m_nMotError = 4;
-						//pParent->m_nInterlockStatus = TRUE;
-						pThread->SetAlarmCall(lpContext, 4, _T("SearchIndex VMove Error!!! Please re start the AOI"));
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
 
 						return 0;
 					}
 				}
 				break;
-			case 14:
 
-				if (pThread->Move(0.0,
-					pThread->m_stParam.Home.f1stSpd,
-					pThread->m_stParam.Home.fAcc,
-					pThread->m_stParam.Home.fAcc,
-					30.0,
-					INC,
-					WAIT,
-					OPTIMIZED
-				))//S_CURVE
+			case 11:
+				strMsg.Format(_T("%s"), _T("STEP5_ORIGIN_SHIFT"));
+
+				if (pThread->m_stParam.Home.fShift != 0.0)
+				{
+					pThread->ClearStatus();
+					Sleep(100);
+
+					if (pThread->GetState() == MPIStateERROR)
+					{
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
+						break;
+					}
+
+					if (!pThread->GetAmpEnable())
+					{
+						pThread->SetAmpEnable(TRUE);
+						Sleep(50);
+						if (!pThread->GetAmpEnable())
+						{
+							if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+							{
+								bError = TRUE;
+								pThread->SetEStop();
+
+								strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+								if (pParent->m_nInterlockStatus == 0)
+									pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+								return 0;
+							}
+							break;
+						}
+					}
+
+					if (pThread->m_stParam.Home.fShift < 0.0)
+						dTempVal = -1.0*pThread->m_stParam.Home.fShift;
+					else
+						dTempVal = pThread->m_stParam.Home.fShift;
+
+					pThread->ClearStatus();
+					Sleep(100);
+
+					if (pThread->StartPtPMove(dTempVal*(-(double)pThread->m_stParam.Home.nDir),
+						pThread->m_stParam.Home.f2ndSpd,
+						pThread->m_stParam.Home.fAcc,
+						pThread->m_stParam.Home.fAcc,
+						INC,
+						NO_WAIT))
+					{
+						Sleep(100);
+						pThread->m_nExeStatus++;
+						nOriginTick = GetTickCount64();
+					}
+					else
+					{
+						bError = TRUE;
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
+					}
+				}
+				else
+				{
+					nOriginTick = GetTickCount64();
+					pThread->m_nExeStatus = 13;
+				}
+				bChkState = TRUE;
+				break;
+			case 12:
+				bMotDone = pThread->IsMotionDone();
+				bInPos = pThread->IsInPosition();
+				if (bSixStepTrigger == 0)
+				{
+					strMsg.Format(_T("%s"), _T("STEP6_ORIGIN_OFFSET"));
+					bSixStepTrigger = 1;
+				}
+				if (bMotDone && bInPos)
 				{
 					Sleep(100);
-					bChkState = TRUE;
+					bLimitEvent = pThread->CheckLimitSwitch(pThread->m_stParam.Home.nDir);//GetThetaLimitInputForGm
+
+					if (bLimitEvent)
+					{
+						if (pThread->m_stParam.Home.nDir == PLUS)
+							pThread->SetPosHWLimitAction(MPIActionNONE);
+						else
+							pThread->SetNegHWLimitAction(MPIActionNONE);
+
+						if (pThread->GetState() == MPIStateERROR)
+						{
+							pThread->ClearStatus();
+							Sleep(100);
+							if (pThread->GetState() == MPIStateERROR)
+							{
+								pThread->ClearStatus();
+								Sleep(100);
+								if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+								{
+									bError = TRUE;
+									pThread->SetEStop();
+
+									strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+									if (pParent->m_nInterlockStatus == 0)
+										pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+									return 0;
+								}
+								break;
+							}
+						}
+						pThread->m_nExeStatus = 11;
+						nOriginTick = GetTickCount64();
+						bSixStepTrigger = 0;
+					}
+					else
+					{
+						bMotDone = pThread->IsMotionDone();
+						bInPos = pThread->IsInPosition();
+
+						if (bMotDone && bInPos)
+						{
+							Sleep(100);
+							pThread->SetNegHWLimitAction(MPIActionE_STOP);
+							pThread->SetPosHWLimitAction(MPIActionE_STOP);
+							pThread->SetEStopRate(pThread->m_fEStopTime);
+							pThread->m_nExeStatus++;
+							bSixStepTrigger = 0;
+							nOriginTick = GetTickCount64();
+						}
+						else
+						{
+							if (bMotDone)
+								pThread->m_nExeStatus--;
+
+							if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+							{
+								bError = TRUE;
+								pThread->SetEStop();
+
+								strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+								if (pParent->m_nInterlockStatus == 0)
+									pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+								return 0;
+							}
+						}
+					}
+				}
+				else
+				{
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
+					}
+				}
+				break;
+			case 13:
+				Sleep(30);
+				if (fabs(pThread->GetCommandPosition() - pThread->m_stParam.Home.fOffset) >= 1.0)
+					pThread->SetPosition(pThread->m_stParam.Home.fOffset);
+
+				while (fabs(pThread->GetCommandPosition() - pThread->m_stParam.Home.fOffset) >= 1.0)
+				{
+					Sleep(30);
+					pThread->SetPosition(pThread->m_stParam.Home.fOffset);
+
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
+					}
 				}
 
-				bChkState = TRUE;
+				if (fabs(pThread->GetActualPosition() - pThread->m_stParam.Home.fOffset) >= 1.0)
+					pThread->SetPosition(pThread->m_stParam.Home.fOffset);
 
-				pThread->m_nExeStatus = 15;
-				break;
+				while (fabs(pThread->GetActualPosition() - pThread->m_stParam.Home.fOffset) >= 1.0)
+				{
+					Sleep(30);
+					pThread->SetPosition(pThread->m_stParam.Home.fOffset);
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
 
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
 
-			case 15:
-				pThread->ChangePosSWLimitValue(fPrevPosLimit);
-				pThread->ChangeNegSWLimitValue(fPrevNegLimit);
-
-				pThread->SetPosSWLimitAction(MPIActionE_STOP);
-				pThread->SetNegSWLimitAction(MPIActionE_STOP);
-				pThread->SetPosHWLimitAction(MPIActionE_STOP);
-				pThread->SetNegHWLimitAction(MPIActionE_STOP);
-				pThread->SetMSAction(MPIActionRESET);
-				pThread->SetOriginPos();
+						return 0;
+					}
+				}
 				pThread->m_nExeStatus++;
+				nOriginTick = GetTickCount64();
 				break;
-			case 16:
+			case 14:
+				// software limit action & value 
+				pThread->SetSlavePosSoftwareLimit(fPrevPosLimit);
+				pThread->SetSlaveNegSoftwareLimit(fPrevNegLimit);
+				pThread->SetSlaveSoftwareLimit(TRUE);
+				pThread->AmpFaultReset();
+				pThread->SetOriginPos();
+
+
+				pThread->m_nExeStatus++;
+				nOriginTick = GetTickCount64();
+				break;
+			case 15:
 				pThread->ClearStatus();
 				Sleep(100);
+
+				if (pThread->GetState() != MPIStateIDLE && pThread->GetState() != MPIStateSTOPPED)
+				{
+					if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+					{
+						bError = TRUE;
+						pThread->SetEStop();
+
+						strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+						if (pParent->m_nInterlockStatus == 0)
+							pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+						return 0;
+					}
+					break;
+				}
+
+				if (!pThread->GetAmpEnable())
+				{
+					pThread->SetAmpEnable(TRUE);
+					Sleep(50);
+					if (!pThread->GetAmpEnable())
+					{
+						if (GetTickCount64() - nOriginTick >= TEN_SECOND)
+						{
+							bError = TRUE;
+							pThread->SetEStop();
+
+							strMsg.Format(_T("Error - Motor_%d %s"), nMotorID, _T("Amp Fault Detected.. please re try Machine Ready"));
+							if (pParent->m_nInterlockStatus == 0)
+								pThread->SetAlarmCall(lpContext, 3, _T("Amp Fault Detected.. please retry Machine Ready"));
+
+							return 0;
+						}
+						break;
+					}
+				}
+
 				pThread->m_nExeStatus++;
+				nOriginTick = GetTickCount64();
 				break;
-			case 17:
-				strMsg.Format(_T("%s"), pGlobalView->GetLanguageString("MOTION", "FINISH_ORIGIN_RETURN"));
-				pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_LTGREEN);
+
+			case 16:
+				strMsg.Format(_T("%s"), _T("FINISH_ORIGIN_RETURN"));
 				pThread->m_bOrigin = TRUE;
 				pParent->m_bOrigin[nAxisID] = TRUE;
 				break;
 			}
-
-			BOOL bInterlockShinko = 0;
-
-			if (pGlobalDoc->m_bUseInlineAutomation)
-			{
-				if (CController::m_pController->m_state == ECS_EQ_DOWN)
-				{
-					bInterlockShinko = 1;
-				}
-			}
-
-#ifdef THETA_AXIS
-			if (bClampError || bInterlockShinko || pParent->m_nInterlockStatus || (pGlobalDoc->m_bSaftyAreaSensorStatus || pGlobalView->m_bSwSafetyArea || pGlobalView->m_pIO->CheckSaftyOnlyBit()) || pGlobalView->m_pIO->CheckEmgSwitch() || pGlobalView->m_pIO->CheckIBIDoorStatusNoMessage() == 0)
-			{
-#else
-			if (bClampError || bInterlockShinko || pParent->m_nInterlockStatus || (pGlobalDoc->m_bSaftyAreaSensorStatus || pGlobalView->m_bSwSafetyArea || pGlobalView->m_pIO->CheckSaftyOnlyBit()) || pGlobalView->m_pIO->CheckEmgSwitch() || pGlobalView->m_pIO->CheckIBIDoorStatusNoMessage() == 0)
-			{
-#endif
-
-#if CUSTOMER_COMPANY != SUMITOMO	//120822 hjc add
-				pGlobalView->TowerLampControl(TOWER_LAMP_RED, ON);	// 20130726 ljh
-#else
-				pGlobalView->TowerLampControl(TOWER_LAMP_YELLOW, ON);	// 20130726 ljh
-#endif
-				pGlobalView->m_pIO->BuzzerOnOff(ON);
-
-				pThread->m_bOrigin = FALSE;
-
-				pThread->SetEStop();
-
-				if (AoiParam()->m_bRTRDoorInterlock)
-				{
-					if (pGlobalView->GetSafeHwnd())
-						strMsg = _T("[MSG564] ") + pGlobalView->GetMultiLangString(pGlobalDoc->m_nSelectedLanguage, "SAFETY SENSOR", "MSG8");
-
-					pParent->m_nInterlockType = FRONT_SIDE_DOOR_SENSOR;
-				}
-
-				if ((pGlobalDoc->m_bUseSaftyAreaSensor && pGlobalView->m_pIO->CheckSaftyOnlyBit()))
-				{
-
-					pParent->m_nInterlockType = SAFETY_AREA_SENSOR;
-					if (pGlobalView->GetSafeHwnd())
-						strMsg = _T("[MSG568] ") + pGlobalView->GetMultiLangString(pGlobalDoc->m_nSelectedLanguage, "SAFETY SENSOR", "MSG14");
-				}
-
-				if (pGlobalDoc->m_bEmergencyStatus)
-				{
-					pParent->m_nInterlockType = EMERGENCY_STOP;
-
-					if (pGlobalView->GetSafeHwnd())
-						strMsg = _T("[MSG534] ") + pGlobalView->GetMultiLangString(pGlobalDoc->m_nSelectedLanguage, "SAFETY SENSOR", "MSG2");
-				}
-
-				if (!pGlobalView->m_pIO->CheckIBIDoorStatusNoMessage())
-				{
-					pParent->m_nInterlockType = DOOR_OPEN;
-					pGlobalView->m_pIO->CheckIBIDoorStatus(strMsg);
-				}
-
-				if (strMsg.IsEmpty())
-				{
-					if (pParent->m_nMotError == 1)
-					{
-						strMsg.Format(_T("Motor_%s : %s"), strAxisName, _T("Pos and Neg Limit Sensor Error!!! Please restart the AOI"));
-					}
-					else  if (pParent->m_nMotError == 2)
-					{
-						strMsg.Format(_T("Axis #%s %s"), strAxisName, _T("Failed that Motor servo On."));
-					}
-					else if (pParent->m_nMotError == 3)
-					{
-						strMsg.Format(_T("Error - Motor_%s %s"), strAxisName, _T("can't escape Limit Sensor!\r\nPlease restart the AOI"));
-					}
-					else if (pParent->m_nMotError == 4)
-					{
-						strMsg.Format(_T("%s %s"), strAxisName, _T("SearchIndex VMove Error!!! Please re start the AOI"));
-					}
-				}
-
-				if (strMsg.IsEmpty())
-					strMsg.Format(_T("%s"), _T("Interlock Status!!! Please re start the AOI"));
-
-				if (pParent->m_nInterlockStatus == 0)
-					pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
-
-				pThread->m_bHomeThreadAlive = FALSE;
-				pParent->
-				m_nInterlockStatus = TRUE;
-
-				if (pGlobalDoc->m_bUseInlineAutomation)
-				{
-					if (CController::m_pController)
-						CController::m_pController->AlarmCall(ALARM_MOTION_FAIL_ORIGIN_THREAD, 1);
-				}
-
-				return 0;
-			}
 		}
-	}*/
+	}
 
 	pThread->m_bHomeThreadAlive = FALSE;
 
 	return 0;
 }
+
+BOOL CNmcAxis::GetThetaLimitInputForGm(BOOL bDir)
+{
+	BOOL bOnOff = TRUE;
+
+	if (bDir == PLUS)
+	{
+		bOnOff = !((CNmcDevice*)m_pParent)->ReadIn(SENSOR::THETA_LIMIT_POS);
+	}
+	else
+	{
+		bOnOff = !((CNmcDevice*)m_pParent)->ReadIn(SENSOR::THETA_LIMIT_NEG);
+	}
+
+	return bOnOff;
+}
+
 
 
 BOOL CNmcAxis::StartHomming()
@@ -4304,7 +4798,7 @@ BOOL CNmcAxis::Stop(int nRate)	//For iRate * 10 msec, Stopping.
 //	if (ms != MC_OK || !bStop)
 	if (ms != MC_OK)
 	{
-		_stprintf(msg, _T("Error - MC_GetErrorMessage :: 0x%08X, %hs"), ms, cstrErrorMsg);
+		_stprintf(msg, _T("Error - MC_GetErrorMessage :: 0x%08X, %hs"), ms, CharToString(cstrErrorMsg));
 		AfxMessageBox(msg);
 		return FALSE;
 	}
@@ -4378,63 +4872,114 @@ BOOL CNmcAxis::StartSCurveMove(double fPos, double fVel, double fAcc, double fJe
 		Sleep(30);
 	}
 
-	// symmetrical trapezoidal motion sequence
-	if (bAbs)
+	if (m_bGantrySlave)
 	{
-		// absolute coordinate move
-		if (!bWait)
+		double fCurPos, fTgtPos, fLength;
+
+		while (!IsMotionDoneGantrySlave())
 		{
-			ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcPositiveDirection, mcAborting);
-			if (ms != MC_OK)
-			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error(003) - MC_MoveAbsolute :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
-			}
+			Sleep(100);
+		}
+		if (m_stParam.Motor.bType != SERVO)
+			fCurPos = GetCommandPosition();
+		else
+			fCurPos = GetActualPosition();
+
+		if (bAbs)
+		{
+			fTgtPos = fPos;
+			if (fTgtPos >= fCurPos)
+				m_nMoveDir = POSITIVE_DIR;
+			else
+				m_nMoveDir = NEGATIVE_DIR;
+			fLength = fabs(fTgtPos - fCurPos);
 		}
 		else
 		{
-			ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcPositiveDirection, mcAborting);
-			if (ms != MC_OK)
-			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error(004) - MC_MoveAbsolute :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
-			}
-			WaitUntilMotionMove(TEN_SECOND);
-			WaitUntilMotionDone(TEN_SECOND);
+			fTgtPos = fCurPos + fPos;
+			if (fTgtPos >= fCurPos)
+				m_nMoveDir = POSITIVE_DIR;
+			else
+				m_nMoveDir = NEGATIVE_DIR;
+			fLength = fabs(fTgtPos - fCurPos);
+		}
+
+		double dPos = LenToPulse(fTgtPos);
+
+		// absolute coordinate move
+		int nDispMode = 3; //3 : Yaw Diff. Display (Slave Axis - Virtual Axis)
+		ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, nDispMode);
+		if (ms != MC_OK)
+		{
+			SetEStop();
+			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+			msg.Format(_T("Error - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+			AfxMessageBox(msg);
+
+			return FALSE;
 		}
 	}
 	else
 	{
-		// incremental coordinate move
-		if (!bWait)
+		// symmetrical trapezoidal motion sequence
+		if (bAbs)
 		{
-			ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcAborting);
-			if (ms != MC_OK)
+			// absolute coordinate move
+			if (!bWait)
 			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
+				ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcPositiveDirection, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(003) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
+			}
+			else
+			{
+				ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcPositiveDirection, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(004) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
 			}
 		}
 		else
 		{
-			ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcAborting);
-			if (ms != MC_OK)
+			// incremental coordinate move
+			if (!bWait)
 			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
+				ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
 			}
-			WaitUntilMotionMove(TEN_SECOND);
-			WaitUntilMotionDone(TEN_SECOND);
+			else
+			{
+				ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
+			}
 		}
 	}
+
 	return ((ms == MC_OK) ? TRUE : FALSE);
 
 	return FALSE;
@@ -4485,63 +5030,114 @@ BOOL CNmcAxis::StartSCurveMove(double fPos, double fVelRatio, BOOL bAbs, BOOL bW
 		Sleep(30);
 	}
 
-	// symmetrical trapezoidal motion sequence
-	if (bAbs)
+	if (m_bGantrySlave)
 	{
-		// absolute coordinate move
-		if (!bWait)
+		double fCurPos, fTgtPos, fLength;
+
+		while (!IsMotionDoneGantrySlave())
 		{
-			ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcPositiveDirection, mcAborting);
-			if (ms != MC_OK)
-			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error(005) - MC_MoveAbsolute :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
-			}
+			Sleep(100);
+		}
+		if (m_stParam.Motor.bType != SERVO)
+			fCurPos = GetCommandPosition();
+		else
+			fCurPos = GetActualPosition();
+
+		if (bAbs)
+		{
+			fTgtPos = fPos;
+			if (fTgtPos >= fCurPos)
+				m_nMoveDir = POSITIVE_DIR;
+			else
+				m_nMoveDir = NEGATIVE_DIR;
+			fLength = fabs(fTgtPos - fCurPos);
 		}
 		else
 		{
-			ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcPositiveDirection, mcAborting);
-			if (ms != MC_OK)
-			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error(006) - MC_MoveAbsolute :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
-			}
-			WaitUntilMotionMove(TEN_SECOND);
-			WaitUntilMotionDone(TEN_SECOND);
+			fTgtPos = fCurPos + fPos;
+			if (fTgtPos >= fCurPos)
+				m_nMoveDir = POSITIVE_DIR;
+			else
+				m_nMoveDir = NEGATIVE_DIR;
+			fLength = fabs(fTgtPos - fCurPos);
+		}
+
+		double dPos = LenToPulse(fTgtPos);
+
+		// absolute coordinate move
+		int nDispMode = 3; //3 : Yaw Diff. Display (Slave Axis - Virtual Axis)
+		ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, nDispMode);
+		if (ms != MC_OK)
+		{
+			SetEStop();
+			MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+			msg.Format(_T("Error - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+			AfxMessageBox(msg);
+
+			return FALSE;
 		}
 	}
 	else
 	{
-		// incremental coordinate move
-		if (!bWait)
+		// symmetrical trapezoidal motion sequence
+		if (bAbs)
 		{
-			ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcAborting);
-			if (ms != MC_OK)
+			// absolute coordinate move
+			if (!bWait)
 			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
+				ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcPositiveDirection, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(005) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
+			}
+			else
+			{
+				ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcPositiveDirection, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(006) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
 			}
 		}
 		else
 		{
-			ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcAborting);
-			if (ms != MC_OK)
+			// incremental coordinate move
+			if (!bWait)
 			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
-				return FALSE;
+				ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
 			}
-			WaitUntilMotionMove(TEN_SECOND);
-			WaitUntilMotionDone(TEN_SECOND);
+			else
+			{
+				ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dAcc, dJerk, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+					return FALSE;
+				}
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
+			}
 		}
 	}
+
 	return ((ms == MC_OK) ? TRUE : FALSE);
 
 	return FALSE;
@@ -4750,6 +5346,13 @@ BOOL CNmcAxis::StartPtPMove(double fPos, double fVel, double fAcc, double fDec, 
 	char cstrErrorMsg[MAX_ERR_LEN];
 
 	CString strTitleMsg = _T(""), strMsg = _T("");
+
+	if (IsAmpFault() || !IsStandStill() || !GetAmpEnable())
+	{
+		ClearStatus();
+		Sleep(30);
+	}
+
 	while (!IsStandStill())
 	{
 		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
@@ -4777,75 +5380,154 @@ BOOL CNmcAxis::StartPtPMove(double fPos, double fVel, double fAcc, double fDec, 
 
 	int nAxisId = m_stParam.Motor.nAxisID;
 
-	if (IsAmpFault())
+	if (m_bGantrySlave)
 	{
-		ClearStatus();
-		Sleep(30);
-	}
-
-	if (bAbs)
-	{
-		// absolute coordinate move
-		if (!bWait)
+		while (!IsMotionDoneGantrySlave())
 		{
-			ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcPositiveDirection, mcAborting);
-			if (ms != MC_OK)
-			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error(007) - MC_MoveAbsolute :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
+			Sleep(100);
+		}
 
-				return FALSE;
+		int nDispMode = 3; //3 : Yaw Diff. Display (Slave Axis - Virtual Axis)
+
+		if (bAbs)
+		{
+			// absolute coordinate move
+			if (!bWait)
+			{
+				ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, nDispMode);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(007) - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+
+					return FALSE;
+				}
+			}
+			else
+			{
+				ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, nDispMode);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(008) - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+
+					return FALSE;
+				}
+
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
+
 			}
 		}
 		else
 		{
-			ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcPositiveDirection, mcAborting);
-			if (ms != MC_OK)
+			// incremental coordinate move
+
+			if (m_stParam.Motor.bType != SERVO)
+				dPos += GetCommandPosition();
+			else
+				dPos += GetActualPosition();
+
+			if (!bWait)
 			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error(008) - MC_MoveAbsolute :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
+				ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, nDispMode);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
 
-				return FALSE;
+					return FALSE;
+				}
 			}
+			else
+			{
+				ms = MC_ChangeGantryAlign(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, nDispMode);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
 
-			WaitUntilMotionMove(TEN_SECOND);
-			WaitUntilMotionDone(TEN_SECOND);
+					return FALSE;
+				}
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
 
+			}
 		}
 	}
 	else
 	{
-		// incremental coordinate move
-		if (!bWait)
-		{
-			ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcAborting);
-			if (ms != MC_OK)
-			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
 
-				return FALSE;
+		if (bAbs)
+		{
+			// absolute coordinate move
+			if (!bWait)
+			{
+				ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcPositiveDirection, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(007) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+
+					return FALSE;
+				}
+			}
+			else
+			{
+				ms = MC_MoveAbsolute(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcPositiveDirection, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error(008) - MC_MoveAbsolute :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
+
+					return FALSE;
+				}
+
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
+
 			}
 		}
 		else
 		{
-			ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcAborting);
-			if (ms != MC_OK)
+			// incremental coordinate move
+			if (!bWait)
 			{
-				MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-				msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, cstrErrorMsg);
-				AfxMessageBox(msg);
+				ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
 
-				return FALSE;
+					return FALSE;
+				}
 			}
-			WaitUntilMotionMove(TEN_SECOND);
-			WaitUntilMotionDone(TEN_SECOND);
+			else
+			{
+				ms = MC_MoveRelative(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dPos, dVel, dAcc, dDec, dJerk, mcAborting);
+				if (ms != MC_OK)
+				{
+					MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
+					msg.Format(_T("Error - MC_MoveRelative :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
+					AfxMessageBox(msg);
 
+					return FALSE;
+				}
+				WaitUntilMotionMove(TEN_SECOND);
+				WaitUntilMotionDone(TEN_SECOND);
+
+			}
 		}
+
 	}
+
 
 	return TRUE;
 }
@@ -4869,9 +5551,37 @@ BOOL CNmcAxis::ControllerRun()
 int CNmcAxis::AmpFaultReset()
 {
 	MC_STATUS ms = MC_OK;
-	ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
-	Sleep(30);
-	return ((ms == MC_OK) ? TRUE : FALSE);
+	BOOL bGantryEnable = TRUE;
+
+	if (IsAmpFault())
+	{
+		if (m_bGantrySlave)
+		{
+			if (bGantryEnable)
+			{
+				((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
+				bGantryEnable = FALSE;
+				Sleep(50);
+			}
+		}
+
+		ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
+		Sleep(30);
+
+		if (m_bGantrySlave)
+		{
+			if (!bGantryEnable)
+			{
+				((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
+				bGantryEnable = TRUE;
+				Sleep(50);
+			}
+		}
+
+		return ((ms == MC_OK) ? TRUE : FALSE);
+	}
+
+	return TRUE;
 }
 
 BOOL CNmcAxis::CheckAmpFaultSwitch()
@@ -5101,7 +5811,7 @@ BOOL CNmcAxis::IsMotionDoneGantrySlave()
 	{
 		SetEStop();
 		MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-		msg.Format(_T("Error - MC_GantryReadStatus :: 0x%08X, %s"), ms, cstrErrorMsg);
+		msg.Format(_T("Error - MC_GantryReadStatus :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 		AfxMessageBox(msg);
 
 		return FALSE;
@@ -5196,7 +5906,7 @@ BOOL CNmcAxis::StartGantrySlaveMove(BOOL bAbs, double fPos, double fVel, double 
 	{
 		SetEStop();
 		MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-		msg.Format(_T("Error - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, cstrErrorMsg);
+		msg.Format(_T("Error - MC_ChangeGantryAlign :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 		AfxMessageBox(msg);
 
 		return FALSE;
@@ -5267,7 +5977,7 @@ void CNmcAxis::EnableSensorStop(int nSensorIndex, BOOL bEnable) // nSensorIndex 
 	{
 		SetEStop();
 		MC_GetErrorMessage(ms, MAX_ERR_LEN, cstrErrorMsg);
-		msg.Format(_T("Error - MC_WriteBoolParameter :: 0x%08X, %s"), ms, cstrErrorMsg);
+		msg.Format(_T("Error - MC_WriteBoolParameter :: 0x%08X, %s"), ms, CharToString(cstrErrorMsg));
 		AfxMessageBox(msg);
 	}
 }
@@ -5595,11 +6305,13 @@ UINT CNmcAxis::RsaHomeThreadProc(LPVOID lpContext)
 
 BOOL CNmcAxis::IsGantry()
 {
-	if (!((CNmcDevice*)m_pParent)->m_bUseGantry)
-		return FALSE;
-	else if (((CNmcDevice*)m_pParent)->m_lGantryMaster == m_stParam.Motor.nAxisID)
-		return TRUE;
+	//if (!((CNmcDevice*)m_pParent)->m_bUseGantry)
+	//	return FALSE;
+	//else if (((CNmcDevice*)m_pParent)->m_lGantryMaster == m_stParam.Motor.nAxisID)
+	//	return TRUE;
 
+	if (((CNmcDevice*)m_pParent)->m_lGantryMaster == m_stParam.Motor.nAxisID)
+			return TRUE;
 	return FALSE;
 
 	//TCHAR msg[MAX_ERR_LEN];
@@ -5631,3 +6343,129 @@ BOOL CNmcAxis::IsGantry()
 	//return TRUE;
 }
 
+CString CNmcAxis::CharToString(char *szStr)
+{
+	CString strRet;
+
+	int nLen = strlen(szStr) + sizeof(char);
+	wchar_t *tszTemp = NULL;
+	tszTemp = new WCHAR[nLen];
+
+	MultiByteToWideChar(CP_ACP, 0, szStr, -1, tszTemp, nLen * sizeof(WCHAR));
+
+	strRet.Format(_T("%s"), (CString)tszTemp);
+	if (tszTemp)
+	{
+		delete[] tszTemp;
+		tszTemp = NULL;
+	}
+	return strRet;
+}
+
+
+BOOL CNmcAxis::GetSlaveSoftwareLimitEbable()
+{
+	if (!m_bGantrySlave)
+		return FALSE;
+
+	MC_STATUS ms = MC_OK;
+	double dVal;
+
+	ms = MC_ReadParameter(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, 1494, &dVal);
+	if (ms != MC_OK)
+	{
+		AfxMessageBox(_T("Error-GetSlaveSoftwareLimitEbable()"));
+		return 0.0;
+	}
+
+	return (dVal > 0 ? TRUE : FALSE);
+}
+
+void CNmcAxis::SetSlaveSoftwareLimit(BOOL bEnable)
+{
+	if (!m_bGantrySlave)
+		return;
+
+	MC_STATUS ms = MC_OK;
+
+	m_stParam.Motor.nPosLimitAction = bEnable;
+	ms = MC_WriteBoolParameter(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, 1494, bEnable);
+	if (ms != MC_OK)
+	{
+		AfxMessageBox(_T("Error-SetSlaveSoftwareLimit()"));
+		return;
+	}
+
+}
+
+double CNmcAxis::GetSlavePosSoftwareLimit()
+{
+	if (!m_bGantrySlave)
+		return 0.0;
+
+	MC_STATUS ms = MC_OK;
+	double dVal;
+
+	ms = MC_ReadParameter(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, 1495, &dVal);
+	if (ms != MC_OK)
+	{
+		AfxMessageBox(_T("Error-GetSlavePosSoftwareLimit()"));
+		return 0.0;
+	}
+
+	double dLimit = PulseToLen(dVal);
+	return dLimit;
+}
+
+void CNmcAxis::SetSlavePosSoftwareLimit(double fLimitVal)
+{
+	if (!m_bGantrySlave)
+		return;
+
+	MC_STATUS ms = MC_OK;
+	m_stParam.Motor.fPosLimit = fLimitVal;
+	double dPos = LenToPulse(fLimitVal);
+
+	ms = MC_WriteParameter(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, 1495, dPos);
+	if (ms != MC_OK)
+	{
+		AfxMessageBox(_T("Error-SetSlavePosSoftwareLimit()"));
+		return;
+	}
+}
+
+double CNmcAxis::GetSlaveNegSoftwareLimit()
+{
+	if (!m_bGantrySlave)
+		return 0.0;
+
+	MC_STATUS ms = MC_OK;
+	double dVal;
+
+	ms = MC_ReadParameter(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, 1496, &dVal);
+	if (ms != MC_OK)
+	{
+		AfxMessageBox(_T("Error-GetSlaveNegSoftwareLimit()"));
+		return 0.0;
+	}
+
+	double dLimit = PulseToLen(dVal);
+	return dLimit;
+}
+
+void CNmcAxis::SetSlaveNegSoftwareLimit(double fLimitVal)
+{
+	if (!m_bGantrySlave)
+		return;
+
+	MC_STATUS ms = MC_OK;
+	m_stParam.Motor.fPosLimit = fLimitVal;
+	double dPos = LenToPulse(fLimitVal);
+
+	ms = MC_WriteParameter(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, 1496, dPos);
+	if (ms != MC_OK)
+	{
+		AfxMessageBox(_T("Error-SetSlaveNegSoftwareLimit()"));
+		return;
+	}
+}

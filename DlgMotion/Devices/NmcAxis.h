@@ -19,12 +19,16 @@
 #define INVALIDE_DOUBLE	0xFFFFFFFFFFFFFFFF
 
 
+typedef enum {THETA_LIMIT_POS = 24, THETA_LIMIT_NEG = 25} SENSOR;
+
 
 
 class CNmcAxis : public CWnd
 {
 	CWnd* m_pParent;
-
+	BOOL m_bGantryMaster;
+	BOOL m_bGantrySlave;
+	BOOL m_bGantryEnable;
 
 	BOOL HomeReady();
 	BOOL EscapeHomeDirLimitSens();
@@ -33,6 +37,7 @@ class CNmcAxis : public CWnd
 	BOOL SecondMoveToHomeDirSens();
 	BOOL SecondMoveToShiftPos();
 	void FinalizeHome();
+	CString CharToString(char *szStr);
 
 public:
 // Construction
@@ -41,13 +46,20 @@ public:
 
 // Attributes
 public: 
-	BOOL   m_bOrigin; // ���� ���� ���� �÷���
+	BOOL   m_bOrigin; 
 	CThreadTask m_ThreadTask; // CThreadTask class, handles the threading code
 	BOOL m_bHomeThreadAlive;
 	double m_fEStopTime;
 	double m_fVel, m_fAcc;
 
 	int m_nExeStatus;
+
+	BOOL IsGantryMaster();
+	void SetGantryMaster(BOOL bOn);
+	BOOL IsGantrySlave();
+	void SetGantrySlave(BOOL bOn);
+	BOOL IsGantryEnable();
+	void SetGantryEnable(BOOL bOn);
 
 	BOOL IsStandStill();
 	BOOL IsAmpReady();
@@ -56,6 +68,7 @@ public:
 	double GetState();
 	BOOL CheckAxisDone();
 	BOOL ClearStatus();
+	BOOL ClearStatusGantry();
 	BOOL CheckMotionDone();
 	double GetActualPosition();
 	double GetCommandPosition();
@@ -69,6 +82,7 @@ public:
 	BOOL StartHomeThread();
 	void StopHomeThread();
 	static UINT HomeThreadProc(LPVOID lpContext);
+	static UINT SlaveHomeThreadProc(LPVOID lpContext);
 	void SetAlarmCall(LPVOID lpContext, int nErrCode, CString sMsg);
 	BOOL ChkMotionAlarmCall(LPVOID lpContext);
 	//BOOL ChkInlineAlarmCall(LPVOID lpContext);
@@ -80,6 +94,15 @@ public:
 
 	void EnableSensorStop(int nSensorIndex, BOOL bEnable); // nSensorIndex : 0 ~ 4 , bEnable 
 	BOOL EStop();
+
+	BOOL GetThetaLimitInputForGm(BOOL bDir);
+
+	BOOL GetSlaveSoftwareLimitEbable();
+	void SetSlaveSoftwareLimit(BOOL bEnable);
+	double GetSlavePosSoftwareLimit();
+	void SetSlavePosSoftwareLimit(double fLimitVal);
+	double GetSlaveNegSoftwareLimit();
+	void SetSlaveNegSoftwareLimit(double fLimitVal);
 
 // Overrides
 	// ClassWizard generated virtual function overrides

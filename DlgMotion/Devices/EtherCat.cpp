@@ -1682,16 +1682,16 @@ BOOL CEtherCat::GetGantry(long lMaster, long lSlave, long *lOnOff)
 	if (lMaster >= MAX_AXIS || lSlave >= MAX_AXIS)
 		return FALSE;
 
-	if (!m_bGantryEnabled && m_bUseGantry && m_lGantryEnable)
-	{
-		*lOnOff = TRUE;
-		return TRUE;
-	}
+	//if (!m_bGantryEnabled && m_bUseGantry && m_lGantryEnable)
+	//{
+	//	*lOnOff = TRUE;
+	//	return TRUE;
+	//}
 
 #ifdef USE_NMC
 	return m_pNmcDevice->GetGantry(lMaster, lSlave, lOnOff);
 #endif
-	return TRUE;
+	return TRUE; // TRUE : No Error, FALSE : Error
 }
 
 BOOL CEtherCat::SetGantry(long lMaster, long lSlave, long lOnOff)
@@ -1699,15 +1699,16 @@ BOOL CEtherCat::SetGantry(long lMaster, long lSlave, long lOnOff)
 	if (lMaster >= MAX_AXIS || lSlave >= MAX_AXIS)
 		return FALSE;
 
-	m_bUseGantry = TRUE;
+	//m_bUseGantry = TRUE;
 	m_lGantryMaster = lMaster;
 	m_lGantrylSlave = lSlave;
-	m_lGantryEnable = lOnOff;
-
+	m_lGantryEnable = 0;
 #ifdef USE_NMC
-	return m_pNmcDevice->SetGantry(lMaster, lSlave, lOnOff);
+	BOOL bRtn = m_pNmcDevice->SetGantry(lMaster, lSlave, lOnOff);
+	m_lGantryEnable = lOnOff;
+	return bRtn;
 #endif
-	return TRUE;
+	return TRUE; // TRUE : No Error, FALSE : Error
 }
 
 BOOL CEtherCat::SetPosition(int nAxisID, double fPos)
@@ -1746,4 +1747,9 @@ void CEtherCat::EnableHwHome(BOOL bEnable)
 		m_pNmcDevice->EnableHwHome(nAxisId, bEnable);
 #endif
 	}
+}
+
+int CEtherCat::GetTotalAxis()
+{
+	return m_nTotAxis;
 }
