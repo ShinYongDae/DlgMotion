@@ -25,6 +25,7 @@ class CDlgMotionDlg : public CDialog
 	double m_dEncAct[MAX_AXIS], m_dEncCmd[MAX_AXIS];
 	unsigned long m_ulDispIn, m_ulDispOut, m_ulOut;
 
+	void InitDlg();
 	void Init();
 	void InitBtn();
 	void Close();
@@ -119,4 +120,8 @@ public:
 	afx_msg LRESULT OnMyBtnDown(WPARAM wPara, LPARAM lPara);
 	afx_msg LRESULT OnMyBtnUp(WPARAM wPara, LPARAM lPara);
 	afx_msg void OnBnClickedButton29();
+	afx_msg void OnBnClickedCheck22();
+	afx_msg void OnBnClickedCheck23();
+	afx_msg void OnBnClickedCheck24();
+	afx_msg void OnBnClickedCheck25();
 };

@@ -125,6 +125,8 @@ public:
 	int GetvAxisID();
 	BOOL IsGantry();
 
+	BOOL EscapeLimit();
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// NMC Code for VRS 
 
@@ -251,7 +253,7 @@ public:
 
 	BOOL InitAxis();
 	//	BOOL SetHomming();
-	BOOL CheckLimitSwitch(int nDir); // PLUS (1), Minus (-1)
+	BOOL CheckLimitSwitch(int nDir); // PLUS (1), MINUS (-1)
 	BOOL CheckPosLimitSwitch();
 	BOOL CheckNegLimitSwitch();
 	double GetJerkTime(double dAcc = INVALIDE_DOUBLE, double dJerk = INVALIDE_DOUBLE);

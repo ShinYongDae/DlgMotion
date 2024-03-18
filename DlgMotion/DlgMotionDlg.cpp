@@ -74,6 +74,10 @@ BEGIN_MESSAGE_MAP(CDlgMotionDlg, CDialog)
 	ON_MESSAGE(WM_MYBTN_DOWN, OnMyBtnDown)
 	ON_MESSAGE(WM_MYBTN_UP, OnMyBtnUp)
 	ON_BN_CLICKED(IDC_BUTTON29, &CDlgMotionDlg::OnBnClickedButton29)
+	ON_BN_CLICKED(IDC_CHECK22, &CDlgMotionDlg::OnBnClickedCheck22)
+	ON_BN_CLICKED(IDC_CHECK23, &CDlgMotionDlg::OnBnClickedCheck23)
+	ON_BN_CLICKED(IDC_CHECK24, &CDlgMotionDlg::OnBnClickedCheck24)
+	ON_BN_CLICKED(IDC_CHECK25, &CDlgMotionDlg::OnBnClickedCheck25)
 END_MESSAGE_MAP()
 
 
@@ -90,6 +94,7 @@ BOOL CDlgMotionDlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	Init(); // Load MotionParam.ini
+	InitDlg();
 
 	DispMotorType();
 	DispMoveConf();
@@ -215,10 +220,12 @@ void CDlgMotionDlg::Init()
 	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK21);
 	pCtlChkBtn->EnableWindow(FALSE);
 
+
 	m_bTIM_DISP_ENC = TRUE;
 	SetTimer(TIM_DISP_ENC, 100, NULL);
 
 	InitCombo();
+	InitBtn();
 }
 
 void CDlgMotionDlg::InitBtn()
@@ -418,23 +425,26 @@ void CDlgMotionDlg::DispLimitSens()
 	CButton* pCtlChkBtnLimitHome[4] = { 0 };
 	CButton* pCtlChkBtnLimitPos[4] = { 0 };
 
-	pCtlChkBtnLimitNeg[0] = (CButton*)GetDlgItem(IDC_CHECK9);
-	pCtlChkBtnLimitNeg[1] = (CButton*)GetDlgItem(IDC_CHECK10);
-	pCtlChkBtnLimitNeg[2] = (CButton*)GetDlgItem(IDC_CHECK11);
-	pCtlChkBtnLimitNeg[3] = (CButton*)GetDlgItem(IDC_CHECK12);
+	pCtlChkBtnLimitPos[0] = (CButton*)GetDlgItem(IDC_CHECK9);
+	pCtlChkBtnLimitPos[1] = (CButton*)GetDlgItem(IDC_CHECK10);
+	pCtlChkBtnLimitPos[2] = (CButton*)GetDlgItem(IDC_CHECK11);
+	pCtlChkBtnLimitPos[3] = (CButton*)GetDlgItem(IDC_CHECK12);
 
 	pCtlChkBtnLimitHome[0] = (CButton*)GetDlgItem(IDC_CHECK13);
 	pCtlChkBtnLimitHome[1] = (CButton*)GetDlgItem(IDC_CHECK14);
 	pCtlChkBtnLimitHome[2] = (CButton*)GetDlgItem(IDC_CHECK15);
 	pCtlChkBtnLimitHome[3] = (CButton*)GetDlgItem(IDC_CHECK16);
 
-	pCtlChkBtnLimitPos[0] = (CButton*)GetDlgItem(IDC_CHECK17);
-	pCtlChkBtnLimitPos[1] = (CButton*)GetDlgItem(IDC_CHECK18);
-	pCtlChkBtnLimitPos[2] = (CButton*)GetDlgItem(IDC_CHECK19);
-	pCtlChkBtnLimitPos[3] = (CButton*)GetDlgItem(IDC_CHECK20);
+	pCtlChkBtnLimitNeg[0] = (CButton*)GetDlgItem(IDC_CHECK17);
+	pCtlChkBtnLimitNeg[1] = (CButton*)GetDlgItem(IDC_CHECK18);
+	pCtlChkBtnLimitNeg[2] = (CButton*)GetDlgItem(IDC_CHECK19);
+	pCtlChkBtnLimitNeg[3] = (CButton*)GetDlgItem(IDC_CHECK20);
 
 	for (int i = 0; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
 	{
+		pCtlChkBtnLimitNeg[i]->SetCheck(m_pEtherCat->CheckLimitSwitch(i, MINUS));
+		pCtlChkBtnLimitHome[i]->SetCheck(m_pEtherCat->CheckHomeSwitch(i));
+		pCtlChkBtnLimitPos[i]->SetCheck(m_pEtherCat->CheckLimitSwitch(i, PLUS));
 	}
 }
 
@@ -1461,3 +1471,318 @@ void CDlgMotionDlg::OnBnClickedButton29()
 	m_pEtherCat->WriteData(m_ulOut);
 }
 
+
+void CDlgMotionDlg::OnBnClickedCheck22()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	BOOL bEnable = ((CButton*)GetDlgItem(IDC_CHECK22))->GetCheck();
+
+	if (bEnable)
+	{
+		m_pEtherCat->SetHWLimitSensorAction(0, PLUS, MPIActionE_STOP);
+		m_pEtherCat->SetHWLimitSensorAction(0, MINUS, MPIActionE_STOP);
+		((CButton*)GetDlgItem(IDC_CHECK22))->SetWindowText(_T("Enable"));
+	}
+	else
+	{
+		m_pEtherCat->SetHWLimitSensorAction(0, PLUS, MPIActionNONE);
+		m_pEtherCat->SetHWLimitSensorAction(0, MINUS, MPIActionNONE);
+		((CButton*)GetDlgItem(IDC_CHECK22))->SetWindowText(_T("Disable"));
+	}
+}
+
+
+void CDlgMotionDlg::OnBnClickedCheck23()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	BOOL bEnable = ((CButton*)GetDlgItem(IDC_CHECK23))->GetCheck();
+
+	if (bEnable)
+	{
+		m_pEtherCat->SetHWLimitSensorAction(1, PLUS, MPIActionE_STOP);
+		m_pEtherCat->SetHWLimitSensorAction(1, MINUS, MPIActionE_STOP);
+		((CButton*)GetDlgItem(IDC_CHECK23))->SetWindowText(_T("Enable"));
+	}
+	else
+	{
+		m_pEtherCat->SetHWLimitSensorAction(1, PLUS, MPIActionNONE);
+		m_pEtherCat->SetHWLimitSensorAction(1, MINUS, MPIActionNONE);
+		((CButton*)GetDlgItem(IDC_CHECK23))->SetWindowText(_T("Disable"));
+	}
+}
+
+
+void CDlgMotionDlg::OnBnClickedCheck24()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	BOOL bEnable = ((CButton*)GetDlgItem(IDC_CHECK24))->GetCheck();
+
+	if (bEnable)
+	{
+		m_pEtherCat->SetHWLimitSensorAction(2, PLUS, MPIActionE_STOP);
+		m_pEtherCat->SetHWLimitSensorAction(2, MINUS, MPIActionE_STOP);
+		((CButton*)GetDlgItem(IDC_CHECK24))->SetWindowText(_T("Enable"));
+	}
+	else
+	{
+		m_pEtherCat->SetHWLimitSensorAction(2, PLUS, MPIActionNONE);
+		m_pEtherCat->SetHWLimitSensorAction(2, MINUS, MPIActionNONE);
+		((CButton*)GetDlgItem(IDC_CHECK24))->SetWindowText(_T("Disable"));
+	}
+}
+
+
+void CDlgMotionDlg::OnBnClickedCheck25()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (!m_pEtherCat)
+		return;
+
+	BOOL bEnable = ((CButton*)GetDlgItem(IDC_CHECK25))->GetCheck();
+
+	if (bEnable)
+	{
+		m_pEtherCat->SetHWLimitSensorAction(3, PLUS, MPIActionE_STOP);
+		m_pEtherCat->SetHWLimitSensorAction(3, MINUS, MPIActionE_STOP);
+		((CButton*)GetDlgItem(IDC_CHECK25))->SetWindowText(_T("Enable"));
+	}
+	else
+	{
+		m_pEtherCat->SetHWLimitSensorAction(3, PLUS, MPIActionNONE);
+		m_pEtherCat->SetHWLimitSensorAction(3, MINUS, MPIActionNONE);
+		((CButton*)GetDlgItem(IDC_CHECK25))->SetWindowText(_T("Disable"));
+	}
+}
+
+void CDlgMotionDlg::InitDlg()
+{
+	if (!m_pEtherCat)
+		return;
+
+	CWnd* pWnd[84] = { 0 };
+
+	// Motor Type
+	pWnd[0] = GetDlgItem(IDC_CHECK5);
+	pWnd[1] = GetDlgItem(IDC_CHECK6);
+	pWnd[2] = GetDlgItem(IDC_CHECK7);
+	pWnd[3] = GetDlgItem(IDC_CHECK8);
+
+	// Enable
+	pWnd[4] = GetDlgItem(IDC_CHECK1);
+	pWnd[5] = GetDlgItem(IDC_CHECK2);
+	pWnd[6] = GetDlgItem(IDC_CHECK3);
+	pWnd[7] = GetDlgItem(IDC_CHECK4);
+
+	// Clear Fault
+	pWnd[8] = GetDlgItem(IDC_BUTTON1);
+	pWnd[9] = GetDlgItem(IDC_BUTTON2);
+	pWnd[10] = GetDlgItem(IDC_BUTTON3);
+	pWnd[11] = GetDlgItem(IDC_BUTTON4);
+
+	// P2P Speed
+	pWnd[12] = GetDlgItem(IDC_EDIT1);
+	pWnd[13] = GetDlgItem(IDC_EDIT2);
+	pWnd[14] = GetDlgItem(IDC_EDIT3);
+	pWnd[15] = GetDlgItem(IDC_EDIT4);
+
+	// Jog Speed
+	pWnd[16] = GetDlgItem(IDC_EDIT13);
+	pWnd[17] = GetDlgItem(IDC_EDIT14);
+	pWnd[18] = GetDlgItem(IDC_EDIT15);
+	pWnd[19] = GetDlgItem(IDC_EDIT16);
+
+	// Acceleration
+	pWnd[20] = GetDlgItem(IDC_EDIT5);
+	pWnd[21] = GetDlgItem(IDC_EDIT6);
+	pWnd[22] = GetDlgItem(IDC_EDIT7);
+	pWnd[23] = GetDlgItem(IDC_EDIT8);
+
+	// Deceleration
+	pWnd[24] = GetDlgItem(IDC_EDIT9);
+	pWnd[25] = GetDlgItem(IDC_EDIT10);
+	pWnd[26] = GetDlgItem(IDC_EDIT11);
+	pWnd[27] = GetDlgItem(IDC_EDIT12);
+
+	// Zero Position
+	pWnd[28] = GetDlgItem(IDC_BUTTON5);
+	pWnd[29] = GetDlgItem(IDC_BUTTON6);
+	pWnd[30] = GetDlgItem(IDC_BUTTON7);
+	pWnd[31] = GetDlgItem(IDC_BUTTON8);
+
+	// Command Pos.
+	pWnd[32] = GetDlgItem(IDC_STATIC_COMMAND_AXIS0);
+	pWnd[33] = GetDlgItem(IDC_STATIC_COMMAND_AXIS1);
+	pWnd[34] = GetDlgItem(IDC_STATIC_COMMAND_AXIS2);
+	pWnd[35] = GetDlgItem(IDC_STATIC_COMMAND_AXIS3);
+
+	// Actual Pos.
+	pWnd[36] = GetDlgItem(IDC_STATIC_ACTUAL_AXIS0);
+	pWnd[37] = GetDlgItem(IDC_STATIC_ACTUAL_AXIS1);
+	pWnd[38] = GetDlgItem(IDC_STATIC_ACTUAL_AXIS2);
+	pWnd[39] = GetDlgItem(IDC_STATIC_ACTUAL_AXIS3);
+
+	// Position 1
+	pWnd[40] = GetDlgItem(IDC_EDIT17);
+	pWnd[41] = GetDlgItem(IDC_EDIT18);
+	pWnd[42] = GetDlgItem(IDC_EDIT19);
+	pWnd[43] = GetDlgItem(IDC_EDIT20);
+
+	// Position 2
+	pWnd[44] = GetDlgItem(IDC_EDIT21);
+	pWnd[45] = GetDlgItem(IDC_EDIT22);
+	pWnd[46] = GetDlgItem(IDC_EDIT23);
+	pWnd[47] = GetDlgItem(IDC_EDIT24);
+
+	// Move Pos. 1
+	pWnd[48] = GetDlgItem(IDC_BUTTON9);
+	pWnd[49] = GetDlgItem(IDC_BUTTON10);
+	pWnd[50] = GetDlgItem(IDC_BUTTON11);
+	pWnd[51] = GetDlgItem(IDC_BUTTON12);
+
+	// Move Pos. 2
+	pWnd[52] = GetDlgItem(IDC_BUTTON13);
+	pWnd[53] = GetDlgItem(IDC_BUTTON14);
+	pWnd[54] = GetDlgItem(IDC_BUTTON15);
+	pWnd[55] = GetDlgItem(IDC_BUTTON16);
+
+	// Move Jog -
+	pWnd[56] = GetDlgItem(IDC_BUTTON17);
+	pWnd[57] = GetDlgItem(IDC_BUTTON19);
+	pWnd[58] = GetDlgItem(IDC_BUTTON21);
+	pWnd[59] = GetDlgItem(IDC_BUTTON23);
+
+	// Move Jog +
+	pWnd[60] = GetDlgItem(IDC_BUTTON18);
+	pWnd[61] = GetDlgItem(IDC_BUTTON20);
+	pWnd[62] = GetDlgItem(IDC_BUTTON22);
+	pWnd[63] = GetDlgItem(IDC_BUTTON24);
+
+	// Sensor Action
+	pWnd[64] = GetDlgItem(IDC_CHECK22);
+	pWnd[65] = GetDlgItem(IDC_CHECK23);
+	pWnd[66] = GetDlgItem(IDC_CHECK24);
+	pWnd[67] = GetDlgItem(IDC_CHECK25);
+
+	// Limit Pos
+	pWnd[68] = GetDlgItem(IDC_CHECK9);
+	pWnd[69] = GetDlgItem(IDC_CHECK10);
+	pWnd[70] = GetDlgItem(IDC_CHECK11);
+	pWnd[71] = GetDlgItem(IDC_CHECK12);
+
+	// Home Sens
+	pWnd[72] = GetDlgItem(IDC_CHECK13);
+	pWnd[73] = GetDlgItem(IDC_CHECK14);
+	pWnd[74] = GetDlgItem(IDC_CHECK15);
+	pWnd[75] = GetDlgItem(IDC_CHECK16);
+
+	// Limit Neg
+	pWnd[76] = GetDlgItem(IDC_CHECK17);
+	pWnd[77] = GetDlgItem(IDC_CHECK18);
+	pWnd[78] = GetDlgItem(IDC_CHECK19);
+	pWnd[79] = GetDlgItem(IDC_CHECK20);
+
+	// Homming
+	pWnd[80] = GetDlgItem(IDC_BUTTON25);
+	pWnd[81] = GetDlgItem(IDC_BUTTON26);
+	pWnd[82] = GetDlgItem(IDC_BUTTON27);
+	pWnd[83] = GetDlgItem(IDC_BUTTON28);
+
+
+	for (int nID = 0; nID < m_pEtherCat->m_ParamCtrl.nTotMotion; nID++)
+	{
+		if (m_pEtherCat->m_pParamMotion[nID].Home.bAct)
+		{
+			pWnd[nID + MAX_AXIS * 0]->EnableWindow(TRUE);	// Motor Type	
+			pWnd[nID + MAX_AXIS * 1]->EnableWindow(TRUE);	// Enable
+			pWnd[nID + MAX_AXIS * 2]->EnableWindow(TRUE);	// Clear Fault
+			pWnd[nID + MAX_AXIS * 3]->EnableWindow(TRUE);	// P2P Speed			
+			pWnd[nID + MAX_AXIS * 4]->EnableWindow(TRUE);	// Jog Speed			
+			pWnd[nID + MAX_AXIS * 5]->EnableWindow(TRUE);	// Acceleration			
+			pWnd[nID + MAX_AXIS * 6]->EnableWindow(TRUE);	// Deceleration
+			pWnd[nID + MAX_AXIS * 7]->EnableWindow(TRUE);	// Zero Position
+			pWnd[nID + MAX_AXIS * 8]->EnableWindow(TRUE);	// Command Pos.
+			pWnd[nID + MAX_AXIS * 9]->EnableWindow(TRUE);	// Actual Pos.
+			pWnd[nID + MAX_AXIS * 10]->EnableWindow(TRUE);	// Position 1
+			pWnd[nID + MAX_AXIS * 11]->EnableWindow(TRUE);	// Position 2
+			pWnd[nID + MAX_AXIS * 12]->EnableWindow(TRUE);	// Move Pos. 1
+			pWnd[nID + MAX_AXIS * 13]->EnableWindow(TRUE);	// Move Pos. 2
+			pWnd[nID + MAX_AXIS * 14]->EnableWindow(TRUE);	// Move Jog -
+			pWnd[nID + MAX_AXIS * 15]->EnableWindow(TRUE);	// Move Jog +
+
+			pWnd[nID + MAX_AXIS * 16]->EnableWindow(TRUE);	// Sensor Action
+			((CButton*)pWnd[nID + MAX_AXIS * 16])->SetCheck(TRUE);
+			if (TRUE)
+			{
+				m_pEtherCat->SetHWLimitSensorAction(nID, PLUS, MPIActionE_STOP);
+				m_pEtherCat->SetHWLimitSensorAction(nID, MINUS, MPIActionE_STOP);
+				((CButton*)pWnd[nID + MAX_AXIS * 16])->SetWindowText(_T("Enable"));
+			}
+
+			pWnd[nID + MAX_AXIS * 17]->EnableWindow(TRUE);	// Limit Pos
+			pWnd[nID + MAX_AXIS * 18]->EnableWindow(TRUE);	// Home Sens
+			pWnd[nID + MAX_AXIS * 19]->EnableWindow(TRUE);	// Limit Neg
+			pWnd[nID + MAX_AXIS * 20]->EnableWindow(TRUE);	// Homming
+		}
+		else
+		{
+			pWnd[nID + MAX_AXIS * 0]->EnableWindow(FALSE);	// Motor Type	
+			pWnd[nID + MAX_AXIS * 1]->EnableWindow(FALSE);	// Enable
+			pWnd[nID + MAX_AXIS * 2]->EnableWindow(FALSE);	// Clear Fault
+			pWnd[nID + MAX_AXIS * 3]->EnableWindow(FALSE);	// P2P Speed			
+			pWnd[nID + MAX_AXIS * 4]->EnableWindow(FALSE);	// Jog Speed			
+			pWnd[nID + MAX_AXIS * 5]->EnableWindow(FALSE);	// Acceleration			
+			pWnd[nID + MAX_AXIS * 6]->EnableWindow(FALSE);	// Deceleration
+			pWnd[nID + MAX_AXIS * 7]->EnableWindow(FALSE);	// Zero Position
+			pWnd[nID + MAX_AXIS * 8]->EnableWindow(FALSE);	// Command Pos.
+			pWnd[nID + MAX_AXIS * 9]->EnableWindow(FALSE);	// Actual Pos.
+			pWnd[nID + MAX_AXIS * 10]->EnableWindow(FALSE);	// Position 1
+			pWnd[nID + MAX_AXIS * 11]->EnableWindow(FALSE);	// Position 2
+			pWnd[nID + MAX_AXIS * 12]->EnableWindow(FALSE);	// Move Pos. 1
+			pWnd[nID + MAX_AXIS * 13]->EnableWindow(FALSE);	// Move Pos. 2
+			pWnd[nID + MAX_AXIS * 14]->EnableWindow(FALSE);	// Move Jog -
+			pWnd[nID + MAX_AXIS * 15]->EnableWindow(FALSE);	// Move Jog +
+			pWnd[nID + MAX_AXIS * 16]->EnableWindow(FALSE);	// Sensor Action
+			pWnd[nID + MAX_AXIS * 17]->EnableWindow(FALSE);	// Limit Pos
+			pWnd[nID + MAX_AXIS * 18]->EnableWindow(FALSE);	// Home Sens
+			pWnd[nID + MAX_AXIS * 19]->EnableWindow(FALSE);	// Limit Neg
+			pWnd[nID + MAX_AXIS * 20]->EnableWindow(FALSE);	// Homming
+		}
+	}
+
+	if (m_pEtherCat->m_ParamCtrl.nTotMotion < MAX_AXIS)
+	{
+		for (int nID = m_pEtherCat->m_ParamCtrl.nTotMotion; nID < MAX_AXIS; nID++)
+		{
+			pWnd[nID + MAX_AXIS * 0]->EnableWindow(FALSE);	// Motor Type	
+			pWnd[nID + MAX_AXIS * 1]->EnableWindow(FALSE);	// Enable
+			pWnd[nID + MAX_AXIS * 2]->EnableWindow(FALSE);	// Clear Fault
+			pWnd[nID + MAX_AXIS * 3]->EnableWindow(FALSE);	// P2P Speed			
+			pWnd[nID + MAX_AXIS * 4]->EnableWindow(FALSE);	// Jog Speed			
+			pWnd[nID + MAX_AXIS * 5]->EnableWindow(FALSE);	// Acceleration			
+			pWnd[nID + MAX_AXIS * 6]->EnableWindow(FALSE);	// Deceleration
+			pWnd[nID + MAX_AXIS * 7]->EnableWindow(FALSE);	// Zero Position
+			pWnd[nID + MAX_AXIS * 8]->EnableWindow(FALSE);	// Command Pos.
+			pWnd[nID + MAX_AXIS * 9]->EnableWindow(FALSE);	// Actual Pos.
+			pWnd[nID + MAX_AXIS * 10]->EnableWindow(FALSE);	// Position 1
+			pWnd[nID + MAX_AXIS * 11]->EnableWindow(FALSE);	// Position 2
+			pWnd[nID + MAX_AXIS * 12]->EnableWindow(FALSE);	// Move Pos. 1
+			pWnd[nID + MAX_AXIS * 13]->EnableWindow(FALSE);	// Move Pos. 2
+			pWnd[nID + MAX_AXIS * 14]->EnableWindow(FALSE);	// Move Jog -
+			pWnd[nID + MAX_AXIS * 15]->EnableWindow(FALSE);	// Move Jog +
+			pWnd[nID + MAX_AXIS * 16]->EnableWindow(FALSE);	// Sensor Action
+			pWnd[nID + MAX_AXIS * 17]->EnableWindow(FALSE);	// Limit Pos
+			pWnd[nID + MAX_AXIS * 18]->EnableWindow(FALSE);	// Home Sens
+			pWnd[nID + MAX_AXIS * 19]->EnableWindow(FALSE);	// Limit Neg
+			pWnd[nID + MAX_AXIS * 20]->EnableWindow(FALSE);	// Homming
+		}
+	}
+}

@@ -144,6 +144,9 @@ public:
 	void EnableHwHome(BOOL bEnable = TRUE);
 
 	int GetTotalAxis();
+	BOOL CheckLimitSwitch(int nAxisID, int nDir); // PLUS (1), MINUS (-1)
+	BOOL CheckHomeSwitch(int nAxisID);
+	BOOL SetHWLimitSensorAction(int nAxisID, int nDir, int nAction=MPIActionE_STOP); // MPIActionNONE, MPIActionE_STOP, ABORT_EVENT 
 
 	// Overrides
 	// ClassWizard generated virtual function overrides

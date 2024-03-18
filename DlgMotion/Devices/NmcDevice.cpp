@@ -403,6 +403,9 @@ BOOL CNmcDevice::InitAxisParam(int nAxis)
 	m_pAxis[nAxis]->m_fEStopTime = m_pParamMotion[nAxis].dEStopTime;
 	m_fMaxVel[nAxis] = m_pParamMotor[nAxis].fLeadPitch*(m_pParamMotor[nAxis].fRatingSpeed / 60.); // [mm/s]
 
+	m_pAxis[nAxis]->SetVMove(m_pParamMotion[nAxis].Speed.fJogMidSpd, m_pParamMotion[nAxis].Speed.fJogAcc);
+
+
 	double dLength = 0.0;
 
 	//m_pAxis[nAxis]->SetNegHWLimitAction(E_STOP_EVENT);
@@ -1039,10 +1042,10 @@ BOOL CNmcDevice::VMove(int nMotionId, int nDir)
 
 	if (GetAxis(nMotionId)->CheckAmpFaultSwitch() || GetAxis(nMotionId)->CheckLimitSwitch(MINUS) || GetAxis(nMotionId)->CheckLimitSwitch(PLUS))
 	{
-		GetAxis(nMotionId)->SetAmpEnable(FALSE);
-		Sleep(50);
-		GetAxis(nMotionId)->AmpFaultReset();
-		Sleep(50);
+		//GetAxis(nMotionId)->SetAmpEnable(FALSE);
+		//Sleep(50);
+		//GetAxis(nMotionId)->AmpFaultReset();
+		//Sleep(50);
 		GetAxis(nMotionId)->ClearStatus();
 		Sleep(50);
 		GetAxis(nMotionId)->SetAmpEnable(TRUE);
@@ -1220,12 +1223,12 @@ BOOL CNmcDevice::GantryEnable(long lOnOff)
 	else
 	{
 		ms = MC_GantryDisable(m_nBoardId, 0);
+		m_bGantryEnabled = FALSE;
 		if (ms != MC_OK)
 		{
 			AfxMessageBox(_T("Error-MC_GantryDisable"));
 			return FALSE;		
 		}
-		m_bGantryEnabled = FALSE;
 		Sleep(50);
 		return TRUE;
 	}
@@ -3057,22 +3060,22 @@ double CNmcDevice::GetMotionTime(double dLen, double dVel, double dAcc, double d
 int CNmcDevice::RestoreSwEmergency()	// -1: Fault , 1: Emergency Signal Off complete, 2: Previous Emergency Signal Off-state, 3: Normal
 {
 	MC_STATUS ms = MC_OK;
-	UINT8 status;
+	UINT8 status=3;
 
-	ms = MC_RestoreSWEmergency(m_nBoardId, &status);
-	if (ms != MC_OK)
-	{
-		//CString sMsg;
-		//sMsg.Format(_T("Error-MC_RestoreSWEmergency"));
-		//AfxMessageBox(sMsg);
-		return FALSE; // Error...
-	}
+	//ms = MC_RestoreSWEmergency(m_nBoardId, &status);
+	//if (ms != MC_OK)
+	//{
+	//	//CString sMsg;
+	//	//sMsg.Format(_T("Error-MC_RestoreSWEmergency"));
+	//	//AfxMessageBox(sMsg);
+	//	return FALSE; // Error...
+	//}
 
-	for (int nAxis = 0; nAxis < m_nTotalAxis; nAxis++)
-	{
-		if(GetAxis(nAxis)->IsAmpFault())
-			GetAxis(nAxis)->AmpFaultReset();
-	}
+	//for (int nAxis = 0; nAxis < m_nTotalAxis; nAxis++)
+	//{
+	//	if(GetAxis(nAxis)->IsAmpFault())
+	//		GetAxis(nAxis)->AmpFaultReset();
+	//}
 	return int(status);
 }
 
@@ -3235,12 +3238,30 @@ BOOL CNmcDevice::SetPosition(int nAxisID, double fPos)
 
 void CNmcDevice::EnableSwLimit(int nAxisID, BOOL bEnable)
 {
-
+	if(bEnable)
+	{
+		GetAxis(nAxisID)->SetPosSoftwareLimit(m_pParamMotor[nAxisID].fPosLimit, E_STOP_EVENT);
+		GetAxis(nAxisID)->SetNegSoftwareLimit(m_pParamMotor[nAxisID].fNegLimit, E_STOP_EVENT);
+	}
+	else
+	{
+		GetAxis(nAxisID)->SetPosSoftwareLimit(m_pParamMotor[nAxisID].fPosLimit, NO_EVENT);
+		GetAxis(nAxisID)->SetNegSoftwareLimit(m_pParamMotor[nAxisID].fNegLimit, NO_EVENT);
+	}
 }
 
 void CNmcDevice::EnableHwLimit(int nAxisID, BOOL bEnable)
 {
-
+	if(bEnable)
+	{
+		GetAxis(nAxisID)->SetPosHWLimitAction(MPIActionE_STOP);
+		GetAxis(nAxisID)->SetNegHWLimitAction(MPIActionE_STOP);
+	}
+	else
+	{
+		GetAxis(nAxisID)->SetPosHWLimitAction(MPIActionNONE);
+		GetAxis(nAxisID)->SetNegHWLimitAction(MPIActionNONE);
+	}
 }
 
 void CNmcDevice::EnableHwHome(int nAxisID, BOOL bEnable)
@@ -3327,4 +3348,75 @@ CString CNmcDevice::CharToString(char *szStr)
 		tszTemp = NULL;
 	}
 	return strRet;
+}
+
+BOOL CNmcDevice::ClearGantryStatus()
+{
+	if (m_lGantryMaster < 0 || m_lGantrylSlave < 0)
+		return FALSE;
+
+	long lMaster = m_lGantryMaster;
+	long lSlave = m_lGantrylSlave;
+
+	return GetAxis(lMaster)->ClearStatusGantry();
+}
+
+BOOL CNmcDevice::SetGantrySlaveHwLimitAction(INT nAction) // MPIActionNONE, MPIActionE_STOP, ABORT_EVENT
+{
+	if (m_lGantryMaster < 0 || m_lGantrylSlave < 0)
+		return FALSE;
+
+	long lMaster = m_lGantryMaster;
+	long lSlave = m_lGantrylSlave;
+
+	GetAxis(lSlave)->SetPosHWLimitAction(nAction);
+	GetAxis(lSlave)->SetNegHWLimitAction(nAction);
+
+	return TRUE;
+}
+
+BOOL CNmcDevice::CheckLimitSwitch(int nAxisID, int nDir) // PLUS (1), MINUS (-1)
+{
+	return GetAxis(nAxisID)->CheckLimitSwitch(nDir);
+}
+
+BOOL CNmcDevice::CheckHomeSwitch(int nAxisID)
+{
+	return GetAxis(nAxisID)->CheckHomeSwitch();
+}
+
+BOOL CNmcDevice::SetHWLimitSensorAction(int nAxisID, int nDir, int nAction) // MPIActionNONE, MPIActionE_STOP, ABORT_EVENT
+{
+	if (nDir == PLUS)
+		GetAxis(nAxisID)->SetPosHWLimitAction(nAction);
+	else if (nDir == MINUS)
+		GetAxis(nAxisID)->SetNegHWLimitAction(nAction);
+	else
+		return FALSE;
+
+	return TRUE;
+}
+
+BOOL CNmcDevice::GantryStop()
+{
+	if (m_lGantryMaster < 0 || m_lGantrylSlave < 0)
+		return FALSE;
+
+	long lMaster = m_lGantryMaster;
+	long lSlave = m_lGantrylSlave;
+
+	return (GetAxis(lMaster)->EStop());
+}
+
+BOOL CNmcDevice::EscapeSlaveLimit()
+{
+	return TRUE;
+
+	if (m_lGantryMaster < 0 || m_lGantrylSlave < 0)
+		return FALSE;
+
+	long lMaster = m_lGantryMaster;
+	long lSlave = m_lGantrylSlave;
+
+	return GetAxis(lSlave)->EscapeLimit();
 }

@@ -1630,7 +1630,7 @@ double CEtherCat::GetSCurveVelocity(double dLen, double &dVel, double &dAcc, dou
 			else
 			{
 				AfxMessageBox(_T("S-Curve 속도 프로파일 계산 에러 "));
-				//				AfxMessageBox(_T("Calculation Error at Speed profile of S-Curve motion"));
+				//AfxMessageBox(_T("Calculation Error at Speed profile of S-Curve motion"));
 			}
 		}
 	} while (1);
@@ -1705,7 +1705,8 @@ BOOL CEtherCat::SetGantry(long lMaster, long lSlave, long lOnOff)
 	m_lGantryEnable = 0;
 #ifdef USE_NMC
 	BOOL bRtn = m_pNmcDevice->SetGantry(lMaster, lSlave, lOnOff);
-	m_lGantryEnable = lOnOff;
+	if(bRtn == MC_OK)
+		m_lGantryEnable = lOnOff;
 	return bRtn;
 #endif
 	return TRUE; // TRUE : No Error, FALSE : Error
@@ -1752,4 +1753,25 @@ void CEtherCat::EnableHwHome(BOOL bEnable)
 int CEtherCat::GetTotalAxis()
 {
 	return m_nTotAxis;
+}
+
+BOOL CEtherCat::CheckLimitSwitch(int nAxisID, int nDir) // PLUS (1), MINUS (-1)
+{
+#ifdef USE_NMC
+	return m_pNmcDevice->CheckLimitSwitch(nAxisID, nDir);
+#endif
+}
+
+BOOL CEtherCat::CheckHomeSwitch(int nAxisID)
+{
+#ifdef USE_NMC
+	return m_pNmcDevice->CheckHomeSwitch(nAxisID);
+#endif
+}
+
+BOOL CEtherCat::SetHWLimitSensorAction(int nAxisID, int nDir, int nAction) // MPIActionNONE, MPIActionE_STOP, ABORT_EVENT
+{
+#ifdef USE_NMC
+	return m_pNmcDevice->SetHWLimitSensorAction(nAxisID, nDir, nAction);
+#endif
 }

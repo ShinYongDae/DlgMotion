@@ -125,9 +125,12 @@ public:
 	long ReadOut();
 	BOOL ReadIn(long bit);
 	BOOL ReadOut(long bit);
+
 	BOOL GantryEnable(long lOnOff);
 	BOOL GetGantry(long lMaster, long lSlave, long *lOnOff);
 	BOOL StartGantrySlaveMove(int nAxisId, BOOL bAbs, double fPos, double fVel, double fAcc, double fDec, double fJerk=0.0, byte nDispMode=3);
+	BOOL ClearGantryStatus();
+	BOOL SetGantrySlaveHwLimitAction(INT nAction);
 
 	BOOL TriggerSetRange(int encAxisId, int nEcatAddr, int vAxisId, double dStPos, double dEdPos, double dPulseWd, double dTrigRes);		// fDBNStartPos : mm , fDBNEndPos : mm , nPulseWidth : uSec [max 3276.8us = 65536 * 50nSec], fOptRes : um
 	BOOL TriggerStop(int nEcatAddr, int vAxisId);
@@ -197,6 +200,13 @@ public:
 	void EnableSwLimit(int nAxisID, BOOL bEnable = TRUE);
 	void EnableHwLimit(int nAxisID, BOOL bEnable = TRUE);
 	void EnableHwHome(int nAxisID, BOOL bEnable = TRUE);
+
+	BOOL CheckLimitSwitch(int nAxisID, int nDir); // PLUS (1), MINUS (-1)
+	BOOL CheckHomeSwitch(int nAxisID);
+	BOOL SetHWLimitSensorAction(int nAxisID, int nDir, int nAction=MPIActionE_STOP); // MPIActionNONE, MPIActionE_STOP, ABORT_EVENT
+	BOOL GantryStop();
+
+	BOOL EscapeSlaveLimit();
 
 // Overrides
 	// ClassWizard generated virtual function overrides

@@ -145,6 +145,9 @@ BOOL CNmcAxis::CheckAxisDone()
 
 BOOL CNmcAxis::ClearStatus()
 {
+	if (m_bGantrySlave)
+		return ((CNmcDevice*)m_pParent)->ClearGantryStatus();
+
 	MC_STATUS ms = MC_OK;
 	UINT32 state = 0x00000000;
 	BOOL bGantryEnable = TRUE;
@@ -163,30 +166,30 @@ BOOL CNmcAxis::ClearStatus()
 
 	if (IsAmpFault())
 	{
-		if (m_bGantryEnable)
-		{
-			if (bGantryEnable)
-			{
-				((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
-				bGantryEnable = FALSE;
-				Sleep(50);
-			}
-		}
+		//if (m_bGantryEnable)
+		//{
+		//	if (bGantryEnable)
+		//	{
+		//		((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
+		//		bGantryEnable = FALSE;
+		//		Sleep(50);
+		//	}
+		//}
 
 		ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
 		Sleep(30);
 
 		if (ms != MC_OK)
 		{
-			if (m_bGantryEnable)
-			{
-				if (!bGantryEnable)
-				{
-					((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
-					bGantryEnable = TRUE;
-					Sleep(50);
-				}
-			}
+			//if (m_bGantryEnable)
+			//{
+			//	if (!bGantryEnable)
+			//	{
+			//		((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
+			//		bGantryEnable = TRUE;
+			//		Sleep(50);
+			//	}
+			//}
 
 			return FALSE;
 		}
@@ -198,27 +201,27 @@ BOOL CNmcAxis::ClearStatus()
 
 	if (!GetAmpEnable())
 	{
-		if (m_bGantryEnable)
-		{
-			if (bGantryEnable)
-			{
-				((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
-				bGantryEnable = FALSE;
-				Sleep(50);
-			}
-		}
+		//if (m_bGantryEnable)
+		//{
+		//	if (bGantryEnable)
+		//	{
+		//		((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
+		//		bGantryEnable = FALSE;
+		//		Sleep(50);
+		//	}
+		//}
 
 		ms = MC_Power(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, TRUE);
 
-		if (m_bGantryEnable)
-		{
-			if (!bGantryEnable)
-			{
-				((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
-				bGantryEnable = TRUE;
-				Sleep(50);
-			}
-		}
+		//if (m_bGantryEnable)
+		//{
+		//	if (!bGantryEnable)
+		//	{
+		//		((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
+		//		bGantryEnable = TRUE;
+		//		Sleep(50);
+		//	}
+		//}
 
 		if (ms != MC_OK)
 		{
@@ -228,21 +231,24 @@ BOOL CNmcAxis::ClearStatus()
 		Sleep(100); // Fastek EasyServo Z축 서보 On시 Delay필요....
 	}
 
-	if (m_bGantryEnable)
-	{
-		if (!bGantryEnable)
-		{
-			((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
-			bGantryEnable = TRUE;
-			Sleep(50);
-		}
-	}
+	//if (m_bGantryEnable)
+	//{
+	//	if (!bGantryEnable)
+	//	{
+	//		((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
+	//		bGantryEnable = TRUE;
+	//		Sleep(50);
+	//	}
+	//}
 
 	return bRtn;
 }
 
 BOOL CNmcAxis::ClearStatusGantry()
 {
+	if (m_bGantrySlave)
+		return ((CNmcDevice*)m_pParent)->ClearGantryStatus();
+
 	MC_STATUS ms = MC_OK;
 	UINT32 state = 0x00000000;
 
@@ -260,16 +266,19 @@ BOOL CNmcAxis::ClearStatusGantry()
 
 	if (IsAmpFault())
 	{
-		ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
-		Sleep(30);
-
-		if (ms != MC_OK)
+		if (!ClearStatus())
 		{
 			AfxMessageBox(_T("Error-MC_Reset()"));
 			return FALSE;
 		}
-
-		Sleep(30);
+		//ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
+		//Sleep(30);
+		//if (ms != MC_OK)
+		//{
+		//	AfxMessageBox(_T("Error-MC_Reset()"));
+		//	return FALSE;
+		//}
+		//Sleep(30);
 	}
 
 	BOOL bRtn = TRUE;
@@ -607,8 +616,8 @@ BOOL CNmcAxis::WaitUntilMotionMove(int mSec)
 		{
 			CmdBufferClear();
 			ClearStatus();
-			AmpFaultReset();
-			ClearStatus();
+			//AmpFaultReset();
+			//ClearStatus();
 
 			return FALSE;
 		}
@@ -670,8 +679,8 @@ BOOL CNmcAxis::WaitUntilMotionDone(int mSec)
 		{
 			CmdBufferClear();
 			ClearStatus();
-			AmpFaultReset();
-			ClearStatus();
+			//AmpFaultReset();
+			//ClearStatus();
 
 			return FALSE;
 		}
@@ -824,8 +833,8 @@ BOOL CNmcAxis::WaitUntilAxisDone(unsigned int nWaitTime)
 				StopVelocityMove(0);
 			}
 			ClearStatus();
-			AmpFaultReset();
-			ClearStatus();
+			//AmpFaultReset();
+			//ClearStatus();
 
 			return FALSE;
 		}
@@ -846,7 +855,7 @@ BOOL CNmcAxis::WaitUntilAxisDone(unsigned int nWaitTime)
 }
 
 
-BOOL CNmcAxis::CheckLimitSwitch(int nDir) // PLUS (1), Minus (-1)
+BOOL CNmcAxis::CheckLimitSwitch(int nDir) // PLUS (1), MINUS (-1)
 {
 	INT nState = 0;
 	if (nDir > 0)
@@ -877,12 +886,30 @@ BOOL CNmcAxis::CheckNegLimitSwitch()
 	MC_STATUS ms = MC_OK;
 	UINT32 state = 0x00000000;
 
-	ms = MC_ReadAxisStatus(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, &state);
-	if (ms != MC_OK)
-		return FALSE;
+	if (m_bGantrySlave)
+	{
+		ms = MC_GantryReadStatus(m_nBoardId, 0, &state);
+		if (ms != MC_OK)
+		{
+			AfxMessageBox(_T("Error-MC_GantryStatus"));
+			return FALSE;
+		}
 
-	if (state & mcLimitSwitchNegEvent)
-		return TRUE;
+		if (state & mcGantry_NegHWLimitSlave)
+			return TRUE;
+	}
+	else
+	{
+		ms = MC_ReadAxisStatus(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, &state);
+		if (ms != MC_OK)
+		{
+			AfxMessageBox(_T("Error-MC_ReadAxisStatus"));
+			return FALSE;
+		}
+
+		if (state & mcLimitSwitchNegEvent)
+			return TRUE;
+	}
 
 	return FALSE;
 }
@@ -939,23 +966,20 @@ double CNmcAxis::GetVelTime(double dLen, double dVel, double dAcc, double dJerk)
 BOOL CNmcAxis::StartVelocityMove(double fVel, double fAcc)
 {
 	CString strTitleMsg=_T(""), strMsg=_T("");
+	DWORD nTick = GetTickCount();
+
+	//ClearStatus();
+
 	while (!IsStandStill())
 	{
-		//strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, pGlobalView->GetLanguageString("MOTION", "Waiting for Motor stand still."));
 		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still.") );
 
-		//if (pGlobalView->GetSafeHwnd())
-		//{
-			strMsg = _T("Waiting for Motor stand still.");
-		//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_GREEN, 30000);
-		//}
-		//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_YELLOW, 3000);
-
+		strMsg = _T("Waiting for Motor stand still.");
+		if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+			return FALSE;
+		
 		Sleep(100);
 	}
-	//if(strTitleMsg != _T(""))
-	//	pGlobalView->ClearDispMessage();
-	//CGvisAORView::m_pAORMasterView->ClearDispMessage();
 
 	if (fVel == INVALIDE_DOUBLE)		fVel = m_stParam.Speed.fVel;
 	if (fAcc == INVALIDE_DOUBLE)		fAcc = m_stParam.Speed.fAcc;
@@ -987,9 +1011,13 @@ BOOL CNmcAxis::StartVelocityMove(double fVel, double fAcc)
 		CString msg;
 		char cstrErrorMsg[MAX_ERR_LEN];
 		double fPos, fTgtPos, fLength;
+		DWORD nTick = GetTickCount();
 
 		while (!IsMotionDoneGantrySlave())
 		{
+			if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+				return FALSE;
+
 			Sleep(100);
 		}
 
@@ -1022,11 +1050,20 @@ BOOL CNmcAxis::StartVelocityMove(double fVel, double fAcc)
 			return FALSE;
 		}
 
-
 		if (IsAmpFault())
 		{
 			ClearStatus();
 			Sleep(30);
+		}
+
+		if (m_bGantryMaster)
+		{
+			((CNmcDevice*)m_pParent)->EscapeSlaveLimit();
+
+			//if( ((CNmcDevice*)m_pParent)->IsLimit( ((CNmcDevice*)m_pParent)->m_lGantrylSlave, PLUS) )
+			//	return FALSE;
+			//if( ((CNmcDevice*)m_pParent)->IsLimit( ((CNmcDevice*)m_pParent)->m_lGantrylSlave, MINUS) )
+			//	return FALSE;
 		}
 
 		mc = MC_MoveVelocity(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, dVel, dAcc, dAcc, 0, enDir, mcAborting);
@@ -1044,6 +1081,9 @@ BOOL CNmcAxis::StartVelocityMove(double fVel, double fAcc)
 
 BOOL CNmcAxis::StopVelocityMove(BOOL bWait)
 {
+	if (m_bGantrySlave)
+		return ((CNmcDevice*)m_pParent)->GantryStop();
+
 	MC_STATUS err = MC_OK;
 
 	err = MC_Halt(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, 500000.0, 0.0, mcAborting);
@@ -1126,22 +1166,17 @@ BOOL CNmcAxis::StartPtPMotion(double fPos, double fVel, double fAcc, double fDec
 	char cstrErrorMsg[MAX_ERR_LEN];
 
 	CString strTitleMsg = _T(""), strMsg = _T("");
+
+	DWORD nTick = GetTickCount();
 	while (!IsStandStill())
 	{
-	//	strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, pGlobalView->GetLanguageString("MOTION", "Waiting for Motor stand still."));
-		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
+		if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+			return FALSE;
 
-	//	if (pGlobalView->GetSafeHwnd())
-	//	{
-			strMsg = _T("Waiting for Motor stand still.");
-	//		pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_GREEN, 30000);
-	//	}
-		//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_YELLOW, 3000);
+		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
+		strMsg = _T("Waiting for Motor stand still.");
 		Sleep(100);
 	}
-	//if (strTitleMsg != _T(""))
-	//	pGlobalView->ClearDispMessage();
-	//CGvisAORView::m_pAORMasterView->ClearDispMessage();
 
 	double dJerkTime = GetAccTime(fVel, fAcc); //0.2; // [sec]
 
@@ -1163,8 +1198,12 @@ BOOL CNmcAxis::StartPtPMotion(double fPos, double fVel, double fAcc, double fDec
 
 	if (m_bGantrySlave)
 	{
+		DWORD nTick = GetTickCount();
 		while (!IsMotionDoneGantrySlave())
 		{
+			if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+				return FALSE;
+
 			Sleep(100);
 		}
 
@@ -1242,6 +1281,11 @@ BOOL CNmcAxis::StartPtPMotion(double fPos, double fVel, double fAcc, double fDec
 	}
 	else
 	{
+		//if (m_bGantryMaster)
+		//{
+		//	((CNmcDevice*)m_pParent)->EscapeSlaveLimit();
+		//}
+
 		if (bAbs)
 		{
 			// absolute coordinate move
@@ -1355,22 +1399,16 @@ BOOL CNmcAxis::SetAmpEnable(BOOL bOn)
 	{
 		if (GetAmpEnable())
 		{
+			DWORD nTick = GetTickCount();
 			while (!IsStandStill())
 			{
-				//strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, pGlobalView->GetLanguageString("MOTION", "Waiting for Motor stand still."));
+				if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+					return FALSE;
+
 				strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
-
-				//if (pGlobalView->GetSafeHwnd())
-				//{
-					strMsg = _T("Waiting for Motor stand still.");
-				//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_GREEN, 30000);
-				//}
-				//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_YELLOW, 3000);
-
-				//ClearStatus();
+				strMsg = _T("Waiting for Motor stand still.");
 				ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
 				Sleep(30);
-				//Sleep(300);
 			}
 		}
 		else
@@ -1531,6 +1569,9 @@ BOOL CNmcAxis::SetEStopRate(int nStopTime) // [mSec]
 
 BOOL CNmcAxis::SetEStop() // [mSec]
 {
+	if (m_bGantrySlave)
+		return ((CNmcDevice*)m_pParent)->GantryStop();
+
 	MC_STATUS ms = MC_OK;
 	double dDec = LenToPulse(m_stParam.Speed.fDec);
 	double dJerk = 0.0;// m_stParam(m_stParam.Speed.fMinJerkTime);
@@ -1548,6 +1589,9 @@ BOOL CNmcAxis::SetStopRate(int nStopTime) // [mSec]
 
 BOOL CNmcAxis::SetStop() // [mSec]
 {
+	if (m_bGantrySlave)
+		return ((CNmcDevice*)m_pParent)->GantryStop();
+
 	MC_STATUS ms = MC_OK;
 	//ms = MC_WriteIntParameter(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, mcpmcpEStopType, IMMEDIATE);
 	//ms = MC_WriteIntParameter(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID, mcpmcpEStopType, DECEL);
@@ -1810,6 +1854,10 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 
 					pThread->SetPosHWLimitAction(MPIActionNONE);
 					pThread->SetNegHWLimitAction(MPIActionNONE);
+					if (pThread->m_bGantryMaster)
+					{
+						((CNmcDevice*)(pThread->m_pParent))->SetGantrySlaveHwLimitAction(MPIActionNONE);
+					}
 
 					if (pThread->m_stParam.Motor.bType == STEPPER) // 20180413-syd : Modified for Fastech synqnet servo pack.
 					{
@@ -2998,8 +3046,14 @@ UINT CNmcAxis::HomeThreadProc(LPVOID lpContext)
 			case 14:
 				pThread->SetPosSoftwareLimit(fPrevPosLimit, MPIActionE_STOP);
 				pThread->SetNegSoftwareLimit(fPrevNegLimit, MPIActionE_STOP);
+				if (pThread->m_bGantryMaster)
+				{
+					((CNmcDevice*)(pThread->m_pParent))->SetGantrySlaveHwLimitAction(MPIActionE_STOP);
+				}
+
 				pThread->AmpFaultReset();
 				pThread->SetOriginPos();
+				pThread->SetVMove(pThread->m_stParam.Speed.fJogMidSpd, pThread->m_stParam.Home.fAcc);
 
 				pThread->m_nExeStatus++;
 				nOriginTick = GetTickCount64();
@@ -4101,7 +4155,7 @@ UINT CNmcAxis::SlaveHomeThreadProc(LPVOID lpContext)
 				pThread->SetSlaveSoftwareLimit(TRUE);
 				pThread->AmpFaultReset();
 				pThread->SetOriginPos();
-
+				pThread->SetVMove(pThread->m_stParam.Speed.fJogMidSpd, pThread->m_stParam.Home.fAcc);
 
 				pThread->m_nExeStatus++;
 				nOriginTick = GetTickCount64();
@@ -4763,6 +4817,9 @@ BOOL CNmcAxis::EStop()
 
 BOOL CNmcAxis::Stop(int nRate)	//For iRate * 10 msec, Stopping.
 {
+	if (m_bGantrySlave)
+		return ((CNmcDevice*)m_pParent)->GantryStop();
+
 	MC_STATUS ms = MC_OK;
 	char cstrErrorMsg[MAX_ERR_LEN];
 	TCHAR msg[MAX_ERR_LEN];
@@ -4842,21 +4899,17 @@ BOOL CNmcAxis::StartSCurveMove(double fPos, double fVel, double fAcc, double fJe
 	char cstrErrorMsg[MAX_ERR_LEN];
 
 	CString strTitleMsg = _T(""), strMsg = _T("");
+
+	DWORD nTick = GetTickCount();
 	while (!IsStandStill())
 	{
-		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
+		if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+			return FALSE;
 
-		//if (pGlobalView->GetSafeHwnd())
-		//{
-			strMsg = _T("Waiting for Motor stand still.");
-		//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_GREEN, 30000);
-		//}
-		//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
+		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
+		strMsg = _T("Waiting for Motor stand still.");
 		Sleep(10);
 	}
-	//if (strTitleMsg != _T(""))
-	//	pGlobalView->ClearDispMessage();
-	//CGvisAORView::m_pAORMasterView->ClearDispMessage();
 
 	double dPos = LenToPulse(fPos);
 	double dVel = LenToPulse(fVel);
@@ -4876,8 +4929,12 @@ BOOL CNmcAxis::StartSCurveMove(double fPos, double fVel, double fAcc, double fJe
 	{
 		double fCurPos, fTgtPos, fLength;
 
+		DWORD nTick = GetTickCount();
 		while (!IsMotionDoneGantrySlave())
 		{
+			if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+				return FALSE;
+
 			Sleep(100);
 		}
 		if (m_stParam.Motor.bType != SERVO)
@@ -4921,6 +4978,11 @@ BOOL CNmcAxis::StartSCurveMove(double fPos, double fVel, double fAcc, double fJe
 	}
 	else
 	{
+		//if (m_bGantryMaster)
+		//{
+		//	((CNmcDevice*)m_pParent)->EscapeSlaveLimit();
+		//}
+
 		// symmetrical trapezoidal motion sequence
 		if (bAbs)
 		{
@@ -4993,21 +5055,17 @@ BOOL CNmcAxis::StartSCurveMove(double fPos, double fVelRatio, BOOL bAbs, BOOL bW
 	char cstrErrorMsg[MAX_ERR_LEN];
 	
 	CString strTitleMsg = _T(""), strMsg = _T("");
+
+	DWORD nTick = GetTickCount();
 	while (!IsStandStill())
 	{
-		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
+		if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+			return FALSE;
 
-		//if (pGlobalView->GetSafeHwnd())
-		//{
-			strMsg = _T("Waiting for Motor stand still.");
-		//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_GREEN, 30000);
-		//}
-		//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
+		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
+		strMsg = _T("Waiting for Motor stand still.");
 		Sleep(10);
 	}
-	//if (strTitleMsg != _T(""))
-	//	pGlobalView->ClearDispMessage();
-	//CGvisAORView::m_pAORMasterView->ClearDispMessage();
 
 	double fVel = m_stParam.Speed.fVel * (fVelRatio / 100.0);
 	double fAcc = m_stParam.Speed.fAcc * (fVelRatio / 100.0);
@@ -5034,8 +5092,12 @@ BOOL CNmcAxis::StartSCurveMove(double fPos, double fVelRatio, BOOL bAbs, BOOL bW
 	{
 		double fCurPos, fTgtPos, fLength;
 
+		DWORD nTick = GetTickCount();
 		while (!IsMotionDoneGantrySlave())
 		{
+			if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+				return FALSE;
+
 			Sleep(100);
 		}
 		if (m_stParam.Motor.bType != SERVO)
@@ -5079,6 +5141,11 @@ BOOL CNmcAxis::StartSCurveMove(double fPos, double fVelRatio, BOOL bAbs, BOOL bW
 	}
 	else
 	{
+		//if (m_bGantryMaster)
+		//{
+		//	((CNmcDevice*)m_pParent)->EscapeSlaveLimit();
+		//}
+
 		// symmetrical trapezoidal motion sequence
 		if (bAbs)
 		{
@@ -5353,21 +5420,16 @@ BOOL CNmcAxis::StartPtPMove(double fPos, double fVel, double fAcc, double fDec, 
 		Sleep(30);
 	}
 
+	DWORD nTick = GetTickCount();
 	while (!IsStandStill())
 	{
-		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
+		if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+			return FALSE;
 
-		//if (pGlobalView->GetSafeHwnd())
-		//{
-			strMsg = _T("Waiting for Motor stand still.");
-		//	pGlobalView->OnDispMessage(strTitleMsg, strMsg, RGB_GREEN, 30000);
-		//}
-		//CGvisAORView::m_pAORMasterView->OnDispMessage(strTitleMsg, strMsg, RGB_RED, 3000);
+		strTitleMsg.Format(_T("%s %s"), m_stParam.Motor.sName, _T("Waiting for Motor stand still."));
+		strMsg = _T("Waiting for Motor stand still.");
 		Sleep(100);
 	}
-	//if (strTitleMsg != _T(""))
-	//	pGlobalView->ClearDispMessage();
-	//CGvisAORView::m_pAORMasterView->ClearDispMessage();
 
 	double dJerkTime = GetAccTime(fVel, fAcc); //0.2; // [sec]
 
@@ -5382,8 +5444,12 @@ BOOL CNmcAxis::StartPtPMove(double fPos, double fVel, double fAcc, double fDec, 
 
 	if (m_bGantrySlave)
 	{
+		DWORD nTick = GetTickCount();
 		while (!IsMotionDoneGantrySlave())
 		{
+			if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+				return FALSE;
+
 			Sleep(100);
 		}
 
@@ -5461,6 +5527,10 @@ BOOL CNmcAxis::StartPtPMove(double fPos, double fVel, double fAcc, double fDec, 
 	}
 	else
 	{
+		//if (m_bGantryMaster)
+		//{
+		//	((CNmcDevice*)m_pParent)->EscapeSlaveLimit();
+		//}
 
 		if (bAbs)
 		{
@@ -5550,38 +5620,40 @@ BOOL CNmcAxis::ControllerRun()
 
 int CNmcAxis::AmpFaultReset()
 {
-	MC_STATUS ms = MC_OK;
-	BOOL bGantryEnable = TRUE;
+	return ClearStatus();
 
-	if (IsAmpFault())
-	{
-		if (m_bGantrySlave)
-		{
-			if (bGantryEnable)
-			{
-				((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
-				bGantryEnable = FALSE;
-				Sleep(50);
-			}
-		}
+	//MC_STATUS ms = MC_OK;
+	//BOOL bGantryEnable = TRUE;
 
-		ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
-		Sleep(30);
+	//if (IsAmpFault())
+	//{
+	//	if (m_bGantrySlave)
+	//	{
+	//		if (bGantryEnable)
+	//		{
+	//			((CNmcDevice*)m_pParent)->GantryEnable(FALSE);
+	//			bGantryEnable = FALSE;
+	//			Sleep(50);
+	//		}
+	//	}
 
-		if (m_bGantrySlave)
-		{
-			if (!bGantryEnable)
-			{
-				((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
-				bGantryEnable = TRUE;
-				Sleep(50);
-			}
-		}
+	//	ms = MC_Reset(m_nBoardId, m_stParam.Motor.nAxisID + m_nOffsetAxisID);
+	//	Sleep(30);
 
-		return ((ms == MC_OK) ? TRUE : FALSE);
-	}
+	//	if (m_bGantrySlave)
+	//	{
+	//		if (!bGantryEnable)
+	//		{
+	//			((CNmcDevice*)m_pParent)->GantryEnable(TRUE);
+	//			bGantryEnable = TRUE;
+	//			Sleep(50);
+	//		}
+	//	}
 
-	return TRUE;
+	//	return ((ms == MC_OK) ? TRUE : FALSE);
+	//}
+
+	//return TRUE;
 }
 
 BOOL CNmcAxis::CheckAmpFaultSwitch()
@@ -5665,123 +5737,6 @@ BOOL CNmcAxis::VMove(int nDir)
 		dVel = m_fVel;
 
 	return StartVelocityMove(dVel, m_fAcc);
-
-//	MPIMoveParams ParamVMove = m_MoveVParams;
-//
-//	//if(nDir < 0)
-//	//{
-//	//	ParamVMove.trajectory.velocity *= nDir;
-//	//}
-//
-//	int nTotAxis = m_nTotAxis;
-//	int i = 0, nAxisID, nMotorID;
-//	double fNegLimit, fPosLimit, fPosCurr;
-//	BOOL bCheckLimit[2]; // [0] : Minus , [1] : Plus
-//	bCheckLimit[0] = FALSE; bCheckLimit[1] = FALSE;
-//
-//#ifdef USE_ZMP
-//	for (i = 0; i < nTotAxis; i++)
-//	{
-//		nAxisID = m_pnAxis[i];
-//		nMotorID = m_pObjectAxis[nAxisID].m_pFilter[0];
-//		fNegLimit = m_pObjectMotor[nMotorID].GetNegSWLimitValue();
-//		fPosLimit = m_pObjectMotor[nMotorID].GetPosSWLimitValue();
-//		fPosCurr = m_pObjectAxis[nAxisID].GetActPos();
-//
-//		if (nDir > 0)
-//		{
-//			if (CheckLimitSwitch(MINUS) || fPosCurr <= fNegLimit)
-//			{
-//				bCheckLimit[0] = TRUE;
-//				m_pObjectMotor[nAxisID].SetNegSWLimitAction(MPIActionNONE);
-//				m_pObjectMotor[nAxisID].SetNegHWLimitAction(MPIActionNONE);
-//				Clear();
-//				Sleep(30);
-//			}
-//		}
-//		else
-//		{
-//			if (CheckLimitSwitch(PLUS) || fPosCurr >= fPosLimit)
-//			{
-//				bCheckLimit[1] = TRUE;
-//				m_pObjectMotor[nAxisID].SetPosSWLimitAction(MPIActionNONE);
-//				m_pObjectMotor[nAxisID].SetPosHWLimitAction(MPIActionNONE);
-//				Clear();
-//				Sleep(30);
-//			}
-//		}
-//	}
-//
-//	MPI_RESULT returnValue;
-//
-//	MPIMotionCoordinationType coord_type = MPIMotionCoordinationTypeSTART_AND_FINISH;
-//	MPIMotionType motionType = MPIMotionTypeVELOCITY_JERK_PERCENT;
-//	MPIMotionVelocityAttrMask mask = MPIMotionVelocityAttrMaskBEHAVIOR;
-//	MPIMotionVelocityAttributes attributes;
-//	attributes.delay = ParamVMove.delay;
-//	attributes.behavior = MPIMotionVelocityBehaviorTypeMODIFY;
-//
-//	if (motionType == MPIMotionTypeVELOCITY_JERK_PERCENT) {
-//		returnValue =
-//			mpiMotionMultiAxisVelocityJerkPercentMove(m_hMotion,
-//				&ParamVMove.trajectory.velocity,
-//				&ParamVMove.trajectory.acceleration,
-//				&ParamVMove.trajectory.jerkPercent,
-//				mask,
-//				&attributes);
-//		if (Error(returnValue)) return FALSE;
-//	}
-//	else if (motionType == MPIMotionTypeVELOCITY_JERK) {
-//		returnValue =
-//			mpiMotionMultiAxisVelocityJerkMove(m_hMotion,
-//				&ParamVMove.trajectory.velocity,
-//				&ParamVMove.trajectory.acceleration,
-//				&ParamVMove.trajectory.accelerationJerk,
-//				mask,
-//				&attributes);
-//		if (Error(returnValue)) return FALSE;
-//	}
-//	else
-//		if (Error(MPIMessageUNSUPPORTED)) return FALSE;
-//
-//	DWORD dwSt;
-//	for (i = 0; i < nTotAxis; i++)
-//	{
-//		nAxisID = m_pnAxis[i];
-//		nMotorID = m_pObjectAxis[nAxisID].m_pFilter[0];
-//		fNegLimit = m_pObjectMotor[nMotorID].GetNegSWLimitValue();
-//		fPosLimit = m_pObjectMotor[nMotorID].GetPosSWLimitValue();
-//		fPosCurr = m_pObjectAxis[nAxisID].GetActPos();
-//
-//		if (bCheckLimit[0])
-//		{
-//			dwSt = GetTickCount();
-//			while (CheckLimitSwitch(MINUS) || fPosCurr <= fNegLimit)
-//			{
-//				Sleep(30);
-//				if (GetTickCount() - dwSt > 500)
-//					break;
-//			}
-//			m_pObjectMotor[nAxisID].SetNegSWLimitAction(MPIActionE_STOP);
-//			m_pObjectMotor[nAxisID].SetNegHWLimitAction(MPIActionE_STOP);
-//		}
-//
-//		if (bCheckLimit[1])
-//		{
-//			dwSt = GetTickCount();
-//			while (CheckLimitSwitch(PLUS) || fPosCurr >= fPosLimit)
-//			{
-//				Sleep(30);
-//				if (GetTickCount() - dwSt > 500)
-//					break;
-//			}
-//			m_pObjectMotor[nAxisID].SetPosSWLimitAction(MPIActionE_STOP);
-//			m_pObjectMotor[nAxisID].SetPosHWLimitAction(MPIActionE_STOP);
-//		}
-//	}
-//#endif
-//
-//	return TRUE;
 }
 
 void CNmcAxis::SetConfigure(UINT16 nBoardId, UINT16 nDevIdIoIn, UINT16 nDevIdIoOut, INT nOffsetAxisID)
@@ -5830,8 +5785,12 @@ BOOL CNmcAxis::StartGantrySlaveMove(BOOL bAbs, double fPos, double fVel, double 
 	CString msg;
 	char cstrErrorMsg[MAX_ERR_LEN];
 
+	DWORD nTick = GetTickCount();
 	while (!IsMotionDoneGantrySlave())
 	{
+		if (GetTickCount() - nTick >= 3 * TEN_SECOND)
+			return FALSE;
+
 		Sleep(100);
 	}
 
@@ -6468,4 +6427,260 @@ void CNmcAxis::SetSlaveNegSoftwareLimit(double fLimitVal)
 		AfxMessageBox(_T("Error-SetSlaveNegSoftwareLimit()"));
 		return;
 	}
+}
+
+BOOL CNmcAxis::EscapeLimit()
+{
+	ULONGLONG nOriginTick = GetTickCount64();
+	MSG message;
+
+	if (CheckLimitSwitch(m_stParam.Home.nDir) || CheckLimitSwitch(-1 * m_stParam.Home.nDir))
+	{
+		SetNegHWLimitAction(NO_EVENT);
+		Sleep(30);
+		SetPosHWLimitAction(NO_EVENT);
+		Sleep(30);
+
+		EnableSwLimit(FALSE);
+		Sleep(30);
+		SetCommandPosition(GetActualPosition());
+		Sleep(30);
+
+		ClearStatus();
+		Sleep(30);
+
+		if (CheckLimitSwitch(m_stParam.Home.nDir))
+		{
+			if (!StartVelocityMove(m_stParam.Home.f1stSpd*(-m_stParam.Home.nDir), m_stParam.Home.fAcc))
+			{
+				Sleep(100);
+				if (IsMotionDone())
+				{
+					ClearStatus();
+					Sleep(30);
+
+					if (!StartVelocityMove(m_stParam.Home.f1stSpd*(-m_stParam.Home.nDir), m_stParam.Home.fAcc))
+					{
+						Sleep(30);
+						AfxMessageBox(_T("SearchHomePos Fail : StartVelocityMove Fail axisdone"));
+						return FALSE;
+					}
+				}
+				else
+				{
+					AfxMessageBox(_T("SearchHomePos Fail : StartVelocityMove Fail"));
+					return FALSE;
+				}
+			}
+
+			Sleep(30);
+			EnableSwLimit(FALSE);
+			Sleep(30);
+
+			int nRet = 0;
+			nOriginTick = GetTickCount64();
+			while (CheckLimitSwitch(m_stParam.Home.nDir))
+			{
+				if (::PeekMessage(&message, NULL, 0, 0, PM_REMOVE))
+				{
+					::TranslateMessage(&message);
+					::DispatchMessage(&message);
+				}
+
+				// 계속 -방향으로 이동한다.
+				if (CheckEmgSwitch()) //EMERGENCY_SWITCH
+				{
+					StopVelocityMove();
+					return FALSE;
+				}
+
+				int nState = CheckAxisState();
+
+				if (CheckAmpFaultSwitch())
+				{
+					ClearStatus();
+					Sleep(30);
+
+					if (GetAmpEnable() == 0)
+					{
+						SetAmpEnable(1);
+					}
+					SetCommandPosition(GetActualPosition());
+
+					ClearStatus();
+					Sleep(30);
+
+					if (!StartVelocityMove(m_stParam.Home.f1stSpd*(-m_stParam.Home.nDir), m_stParam.Home.fAcc))
+					{
+						if (IsMotionDone())
+						{
+							double dPos = GetActualPosition();
+							SetCommandPosition(dPos);
+
+							ClearStatus();
+							Sleep(30);
+
+							if (!StartVelocityMove(m_stParam.Home.f1stSpd*(-m_stParam.Home.nDir), m_stParam.Home.fAcc))
+							{
+
+							}
+						}
+						else
+						{
+
+						}
+					}
+
+					nRet++;
+				}
+
+				if (nRet > 3)
+				{
+					StopVelocityMove();
+					return FALSE;
+				}
+
+				if (GetTickCount64() - nOriginTick >= 10000)
+				{
+					StopVelocityMove();
+					return FALSE;
+				}
+			}
+			Sleep(30);
+			StopVelocityMove();
+			Sleep(30);
+
+			SetNegHWLimitAction(E_STOP_EVENT);
+			Sleep(30);
+			SetPosHWLimitAction(E_STOP_EVENT);
+			Sleep(30);
+			EnableSwLimit(TRUE);
+			Sleep(30);
+			SetCommandPosition(GetActualPosition());
+			Sleep(30);
+			ClearStatus();
+			Sleep(30);
+		}
+		else if (CheckLimitSwitch(-1 * m_stParam.Home.nDir))
+		{
+			if (!StartVelocityMove(m_stParam.Home.f1stSpd*m_stParam.Home.nDir, m_stParam.Home.fAcc))
+			{
+				Sleep(100);
+				if (IsMotionDone())
+				{
+					ClearStatus();
+					Sleep(30);
+
+					if (!StartVelocityMove(m_stParam.Home.f1stSpd*m_stParam.Home.nDir, m_stParam.Home.fAcc))
+					{
+						Sleep(30);
+						AfxMessageBox(_T("SearchHomePos Fail : StartVelocityMove Fail axisdone"));
+						return FALSE;
+					}
+				}
+				else
+				{
+					AfxMessageBox(_T("SearchHomePos Fail : StartVelocityMove Fail"));
+					return FALSE;
+				}
+			}
+
+			int nRet = 0;
+			nOriginTick = GetTickCount64();
+			while (CheckLimitSwitch(-1 * m_stParam.Home.nDir))
+			{
+				if (::PeekMessage(&message, NULL, 0, 0, PM_REMOVE))
+				{
+					::TranslateMessage(&message);
+					::DispatchMessage(&message);
+				}
+
+				// 계속 -방향으로 이동한다.
+				if (CheckEmgSwitch()) //EMERGENCY_SWITCH
+				{
+					StopVelocityMove();
+					return FALSE;
+				}
+
+				int nState = CheckAxisState();
+
+				if (CheckAmpFaultSwitch())
+				{
+					ClearStatus();
+					Sleep(30);
+
+					if (GetAmpEnable() == 0)
+					{
+						SetAmpEnable(1);
+					}
+					SetCommandPosition(GetActualPosition());
+
+					ClearStatus();
+					Sleep(30);
+
+					if (!StartVelocityMove(m_stParam.Home.f1stSpd*m_stParam.Home.nDir, m_stParam.Home.fAcc))
+					{
+						if (IsMotionDone())
+						{
+							double dPos = GetActualPosition();
+							SetCommandPosition(dPos);
+
+							ClearStatus();
+							Sleep(30);
+
+							if (!StartVelocityMove(m_stParam.Home.f1stSpd*m_stParam.Home.nDir, m_stParam.Home.fAcc))
+							{
+
+							}
+						}
+						else
+						{
+
+						}
+					}
+
+					nRet++;
+				}
+
+				if (nRet > 3)
+				{
+					StopVelocityMove();
+					return FALSE;
+				}
+
+				if (GetTickCount64() - nOriginTick >= 10000)
+				{
+					StopVelocityMove();
+					return FALSE;
+				}
+			}
+			Sleep(30);
+			StopVelocityMove();
+			Sleep(30);
+
+			SetNegHWLimitAction(E_STOP_EVENT);
+			Sleep(30);
+			SetPosHWLimitAction(E_STOP_EVENT);
+			Sleep(30);
+			EnableSwLimit(TRUE);
+			Sleep(30);
+			SetCommandPosition(GetActualPosition());
+			Sleep(30);
+			ClearStatus();
+			Sleep(30);
+		}
+
+		if (!WaitUntilMotionDone(TEN_SECOND))
+		{
+			return FALSE;
+		}
+
+		if (!GetAmpEnable())
+		{
+			SetAmpEnable(TRUE);
+			Sleep(30);
+		}
+	}
+
+	return TRUE;
 }
