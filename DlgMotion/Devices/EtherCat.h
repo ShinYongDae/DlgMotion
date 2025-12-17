@@ -106,7 +106,7 @@ public:
 	BOOL Move(int nMotionId, double *pTgtPos, BOOL bAbs = ABS, BOOL bWait = NO_WAIT);
 	BOOL Move(int nMotionId, double *pTgtPos, double dRatio, BOOL bAbs = ABS, BOOL bWait = NO_WAIT);
 	BOOL Move(int nMotionId, double *pTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs = ABS, BOOL bWait = WAIT);
-	BOOL Move(int nMotionId, double dTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs = ABS, BOOL bWait = WAIT);
+	BOOL Move(int nMotionId, double dTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs = ABS, BOOL bWait = WAIT, BOOL bOptimize = TRUE);
 
 	//BOOL MovePath(int nMotionId);
 	//BOOL SetErrMap(CMyFileErrMap *pMyFile);

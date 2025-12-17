@@ -1379,10 +1379,10 @@ BOOL CEtherCat::Move(int nMotionId, double *pTgtPos, double dSpd, double dAcc, d
 	return TRUE;
 }
 
-BOOL CEtherCat::Move(int nMotionId, double dTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs, BOOL bWait)
+BOOL CEtherCat::Move(int nMotionId, double dTgtPos, double dSpd, double dAcc, double dDec, BOOL bAbs, BOOL bWait, BOOL bOptimize)
 {
 #ifdef USE_NMC
-	return (m_pNmcDevice->Move(nMotionId, dTgtPos, dSpd, dAcc, dDec, bAbs, bWait));
+	return (m_pNmcDevice->Move(nMotionId, dTgtPos, dSpd, dAcc, dDec, bAbs, bWait, bOptimize));
 #endif
 	return TRUE;
 }
@@ -1775,3 +1775,4 @@ BOOL CEtherCat::SetHWLimitSensorAction(int nAxisID, int nDir, int nAction) // MP
 	return m_pNmcDevice->SetHWLimitSensorAction(nAxisID, nDir, nAction);
 #endif
 }
+

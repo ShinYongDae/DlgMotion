@@ -26,6 +26,12 @@ CDlgMotionDlg::CDlgMotionDlg(CWnd* pParent /*=NULL*/)
 	m_bTIM_DISP_ENC = FALSE;
 	m_nCurSelMaster = -1;
 	m_nCurSelSlaver = -1;
+	m_nCurSelRepeatAxis = -1;
+	m_bRepeatTest = FALSE;
+	m_bReverse = FALSE;
+	m_nRepeat = 0;
+	m_nStepRptTest = 0;
+	m_nMoveStep = 0;
 }
 
 CDlgMotionDlg::~CDlgMotionDlg()
@@ -78,10 +84,58 @@ BEGIN_MESSAGE_MAP(CDlgMotionDlg, CDialog)
 	ON_BN_CLICKED(IDC_CHECK23, &CDlgMotionDlg::OnBnClickedCheck23)
 	ON_BN_CLICKED(IDC_CHECK24, &CDlgMotionDlg::OnBnClickedCheck24)
 	ON_BN_CLICKED(IDC_CHECK25, &CDlgMotionDlg::OnBnClickedCheck25)
+	ON_CBN_SELCHANGE(IDC_COMBO3, &CDlgMotionDlg::OnSelchangeCombo3)
+	ON_BN_CLICKED(IDC_CHECK27, &CDlgMotionDlg::OnBnClickedCheck27)
+	ON_BN_CLICKED(IDC_BUTTON30, &CDlgMotionDlg::OnBnClickedButton30)
+	ON_BN_CLICKED(IDC_BUTTON31, &CDlgMotionDlg::OnBnClickedButton31)
 END_MESSAGE_MAP()
 
 
 // CDlgMotionDlg 메시지 처리기
+
+void CDlgMotionDlg::ProcThrd0(const LPVOID lpContext)
+{
+	CDlgMotionDlg* pDlg = reinterpret_cast<CDlgMotionDlg*>(lpContext);
+
+	while (pDlg->ThreadIsAlive())
+	{
+		if (!pDlg->Proc0())
+			break;
+	}
+}
+
+BOOL CDlgMotionDlg::Proc0()
+{
+	if (IsRepeatTest())
+	{
+		DoRepeatTest();
+	}
+	else
+		Sleep(100);
+
+	return TRUE;
+}
+
+void CDlgMotionDlg::ThreadStart()
+{
+	m_bThreadAlive = TRUE;
+	t0 = std::thread(ProcThrd0, this);
+}
+
+void CDlgMotionDlg::ThreadStop()
+{
+	m_bThreadAlive = FALSE;
+	MSG message;
+	const DWORD dwTimeOut = 1000 * 60 * 3; // 3 Minute
+	DWORD dwStartTick = GetTickCount();
+	Sleep(30);
+}
+
+BOOL CDlgMotionDlg::ThreadIsAlive()
+{
+	return m_bThreadAlive;
+}
+
 
 BOOL CDlgMotionDlg::OnInitDialog()
 {
@@ -98,6 +152,7 @@ BOOL CDlgMotionDlg::OnInitDialog()
 
 	DispMotorType();
 	DispMoveConf();
+	DispRepeatConf();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -156,6 +211,7 @@ void CDlgMotionDlg::Init()
 	SetIoOut();
 
 	ThreadInit();	// GetEnc();
+	ThreadStart();	// DoRepeatTest();
 
 	int nTotalAxis = m_pEtherCat->GetTotalAxis();
 
@@ -253,6 +309,10 @@ void CDlgMotionDlg::InitBtn()
 
 void CDlgMotionDlg::Close()
 {
+	ThreadStop();
+	Sleep(30);
+	t0.join();
+	Sleep(30);
 	ThreadKill();
 
 	m_bTIM_DISP_ENC = FALSE;
@@ -677,15 +737,18 @@ void CDlgMotionDlg::InitCombo()
 
 	CComboBox* pCtlComboMaster = (CComboBox*)GetDlgItem(IDC_COMBO1);
 	CComboBox* pCtlComboSlaver = (CComboBox*)GetDlgItem(IDC_COMBO2);
+	CComboBox* pCtlComboRepeatAxis = (CComboBox*)GetDlgItem(IDC_COMBO3);
 	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK21);
 
 	pCtlComboMaster->ResetContent();
 	pCtlComboSlaver->ResetContent();
+	pCtlComboRepeatAxis->ResetContent();
 
 	int nTotalAxis = m_pEtherCat->GetTotalAxis();
 	for (nID = 0; nID < nTotalAxis; nID++)
 	{
 		pCtlComboMaster->InsertString(nID, m_pEtherCat->m_pParamAxis[nID].sName);
+		pCtlComboRepeatAxis->InsertString(nID, m_pEtherCat->m_pParamAxis[nID].sName);
 	}
 
 	pCtlComboSlaver->EnableWindow(FALSE);
@@ -1087,7 +1150,7 @@ BOOL CDlgMotionDlg::Move(int nID, CWnd* pWndTgtPos, CWnd* pWndSpd, CWnd* pWndAcc
 	double dAcc = _tstof(sAcc);
 	double dDec = _tstof(sDec);
 
-	if (!m_pEtherCat->Move(nID, dTgtPos, dSpd, dAcc, dDec))
+	if (!m_pEtherCat->Move(nID, dTgtPos, dSpd, dAcc, dDec, TRUE, TRUE))
 	{
 		sMsg.Format(_T("Error Move. - %s ."), GetMotorName(nID));
 		AfxMessageBox(sMsg);
@@ -1786,3 +1849,613 @@ void CDlgMotionDlg::InitDlg()
 		}
 	}
 }
+
+
+
+void CDlgMotionDlg::OnSelchangeCombo3()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	int nID = 0, nID2 = 0;
+
+	CComboBox* pCtlComboRepeatAxis = (CComboBox*)GetDlgItem(IDC_COMBO3);
+	int nIndex = pCtlComboRepeatAxis->GetCurSel();
+	if (nIndex == LB_ERR)	return;	
+	m_nCurSelRepeatAxis = nIndex;
+
+	//int nIndex = pCtlComboSlaver->GetCurSel();
+	//pCtlComboSlaver->GetLBText(nIndex, sSelName);
+
+	//for (nID = 0; nID < MAX_AXIS; nID++)
+	//{
+	//	if (GetMotorName(nID) == sSelName)
+	//	{
+	//		m_nCurSelSlaver = nID;
+	//		pCtlChkBtn->EnableWindow(TRUE);
+	//		break;
+	//	}
+	//}
+
+	//if (!pCtlComboRepeatAxis->IsWindowEnabled())
+	//	pCtlComboRepeatAxis->EnableWindow(TRUE);
+	//
+	//int nCount = pCtlComboRepeatAxis->GetCount();
+	//if (nCount > 0)
+	//	pCtlComboRepeatAxis->ResetContent();
+
+
+	//pCtlComboSlaver->SetWindowText(_T(""));
+	//m_nCurSelSlaver = -1;
+	//pCtlChkBtn->EnableWindow(FALSE);
+}
+
+void CDlgMotionDlg::DispRepeatConf()
+{
+	CWnd* pWnd[4] = { 0 };
+	
+	pWnd[0] = GetDlgItem(IDC_EDIT25);	// Start Pos.
+	pWnd[1] = GetDlgItem(IDC_EDIT26);	// Step
+	pWnd[2] = GetDlgItem(IDC_EDIT27);	// End Pos.
+	pWnd[3] = GetDlgItem(IDC_EDIT28);	// Repeat count
+
+	CString sVal;	
+	sVal.Format(_T("%.6f"), m_stRepeatConf.dPosStart);
+	pWnd[0]->SetWindowText(sVal);
+}
+
+void CDlgMotionDlg::SaveRepeatConf()
+{
+	CString sPath;
+	TCHAR strPrevDir[MAX_PATH];
+	DWORD dwLength = GetCurrentDirectory(MAX_PATH, strPrevDir);
+	sPath.Format(_T("%s\\%s"), strPrevDir, PATH_REPEAT_CONF);
+
+	CString strData;
+	strData.Format(_T("%d"), m_stRepeatConf.nAxis);
+	::WritePrivateProfileString(_T("INFO"), _T("Axis"), strData, sPath);
+	strData.Format(_T("%.6f"), m_stRepeatConf.dPosStart);
+	::WritePrivateProfileString(_T("INFO"), _T("StartPos"), strData, sPath);
+	strData.Format(_T("%.6f"), m_stRepeatConf.dStep);
+	::WritePrivateProfileString(_T("INFO"), _T("Step"), strData, sPath);
+	strData.Format(_T("%.6f"), m_stRepeatConf.dPosEnd);
+	::WritePrivateProfileString(_T("INFO"), _T("EndPos"), strData, sPath);
+	strData.Format(_T("%d"), m_stRepeatConf.nRepeat);
+	::WritePrivateProfileString(_T("INFO"), _T("TotalRepeat"), strData, sPath);
+	strData.Format(_T("%d"), m_stRepeatConf.bReverse ? 1 : 0);
+	::WritePrivateProfileString(_T("INFO"), _T("Reverse"), strData, sPath);
+	strData.Format(_T("%d"), m_stRepeatConf.bOptimize ? 1 : 0);
+	::WritePrivateProfileString(_T("INFO"), _T("Optimize"), strData, sPath);
+}
+
+void CDlgMotionDlg::LoadRepeatConf()
+{
+	CString sVal, sIdx;
+	TCHAR szData[200];
+	TCHAR sep[] = _T(",/;\r\n\t");
+	TCHAR *token;
+	TCHAR *stopstring;
+
+	CString sPath;
+	TCHAR strPrevDir[MAX_PATH];
+	DWORD dwLength = GetCurrentDirectory(MAX_PATH, strPrevDir);
+
+	sPath.Format(_T("%s\\%s"), strPrevDir, PATH_REPEAT_CONF);
+
+	int nID, nCol, i, nAxisID;
+
+	if (0 < ::GetPrivateProfileString(_T("INFO"), _T("Axis"), NULL, szData, sizeof(szData), sPath))
+		m_stRepeatConf.nAxis = _ttoi(szData);
+	else
+		m_stRepeatConf.nAxis = -1;
+
+	if (0 < ::GetPrivateProfileString(_T("INFO"), _T("StartPos"), NULL, szData, sizeof(szData), sPath))
+		m_stRepeatConf.dPosStart = _ttof(szData);
+	else
+		m_stRepeatConf.dPosStart = 0.0;
+
+	if (0 < ::GetPrivateProfileString(_T("INFO"), _T("Step"), NULL, szData, sizeof(szData), sPath))
+		m_stRepeatConf.dStep = _ttof(szData);
+	else
+		m_stRepeatConf.dStep = 0.0;
+
+	if (0 < ::GetPrivateProfileString(_T("INFO"), _T("EndPos"), NULL, szData, sizeof(szData), sPath))
+		m_stRepeatConf.dPosEnd = _ttof(szData);
+	else
+		m_stRepeatConf.dPosEnd = 0.0;
+
+	if (0 < ::GetPrivateProfileString(_T("INFO"), _T("TotalRepeat"), NULL, szData, sizeof(szData), sPath))
+		m_stRepeatConf.nRepeat = _ttoi(szData);
+	else
+		m_stRepeatConf.nRepeat = 0;
+
+	if (0 < ::GetPrivateProfileString(_T("INFO"), _T("Reverse"), NULL, szData, sizeof(szData), sPath))
+		m_stRepeatConf.bReverse = _ttoi(szData)?TRUE:FALSE;
+	else
+		m_stRepeatConf.bReverse = FALSE;
+
+	if (0 < ::GetPrivateProfileString(_T("INFO"), _T("Optimize"), NULL, szData, sizeof(szData), sPath))
+		m_stRepeatConf.bOptimize = _ttoi(szData) ? TRUE : FALSE;
+	else
+		m_stRepeatConf.bOptimize = FALSE;
+}
+
+
+void CDlgMotionDlg::OnBnClickedCheck27()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK27);
+	BOOL bOn = pCtlChkBtn->GetCheck();
+	if (bOn)
+	{
+		if (IDNO == MessageBox(_T("반복 테스트를 진행하시겠습니까?"), 0, MB_YESNO))
+		{
+			pCtlChkBtn->SetCheck(FALSE);
+			return;
+		}
+		
+		StartRepeatTest();
+	}
+	else
+	{
+		StopRepeatTest();
+	}
+}
+
+void CDlgMotionDlg::StartRepeatTest()
+{
+	m_bRepeatTest = TRUE;
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK27);
+	BOOL bOn = pCtlChkBtn->GetCheck();
+	if (!bOn)
+		pCtlChkBtn->SetCheck(TRUE);
+}
+
+void CDlgMotionDlg::StopRepeatTest()
+{
+	m_bRepeatTest = FALSE;
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK27);
+	BOOL bOn = pCtlChkBtn->GetCheck();
+	if (bOn)
+		pCtlChkBtn->SetCheck(FALSE);
+}
+
+BOOL CDlgMotionDlg::IsRepeatTest()
+{
+	return m_bRepeatTest;
+}
+
+void CDlgMotionDlg::DoRepeatTest()
+{
+	double dPosAct;
+	int nAxis = m_stRepeatConf.nAxis;
+
+	switch (m_nStepRptTest)
+	{
+	case 0:				
+		m_nStepRptTest++;						// 초기화
+		UpdateRepeatConf();
+		SaveRepeatConf();
+		ResetRepeat();
+		ResetMoveStep(); 
+		EnableCtrl(FALSE);
+		break;
+	case 1:
+		m_nStepRptTest++;
+		DispBlank();
+		MovePosSt();							// 초기 위치 이동
+		break;
+	case 2:
+		if (IsMoveDone())
+		{
+			m_nStepRptTest = 10;				// 현재 위치 체크 후 스텝 위치 이동
+			Sleep(100);							// Delay for stability		
+			DispPos(m_pEtherCat->GetCommandPosition(nAxis), m_pEtherCat->GetActualPosition(nAxis));
+		}
+		else
+			Sleep(30);
+		break;
+	case 10:	
+		if(IsPosEnd())							// 현재 위치 체크
+			m_nStepRptTest = 20;				// 반복 테스트 종료
+		else
+		{
+			if (IsRepeatTest())					// Run 버튼 체크
+			{
+				m_nStepRptTest++;
+				MoveStep();						// 스텝 위치 이동
+				IncMoveStep();					// 스텝 위치 이동 횟수
+			}
+			else
+				m_nStepRptTest = 20;			// 반복 테스트 종료
+		}
+		break;
+	case 11:
+		if (IsMoveDone())
+		{
+			m_nStepRptTest = 10;				// 현재 위치 체크 후 스텝 위치 이동
+			Sleep(10);							// Delay for stability
+			DispPos(m_pEtherCat->GetCommandPosition(nAxis), m_pEtherCat->GetActualPosition(nAxis));
+		}
+		break;
+	case 20:									// 반복 테스트 횟수 체크
+		if (IsRepeatTest())						// Run 버튼 체크
+		{
+			IncRepeat();						// 반복 테스트 완료 횟수
+			if (IsRepeatCount())
+			{
+				if (m_stRepeatConf.bReverse)
+				{
+					m_bReverse = !m_bReverse;	// Step 방향을 반전 시킴.
+
+					DispBlank();
+					m_nStepRptTest = 10;		// 현재 위치 체크 후 스텝 위치 이동
+				}
+				else
+					m_nStepRptTest = 1;			// 초기 위치 이동
+			}
+			else
+				m_nStepRptTest++;				// 반복 테스트 종료	
+		}
+		else
+			m_nStepRptTest++;					// 반복 테스트 종료	
+		break;
+	case 21:									// 반복 테스트 종료							
+		EnableCtrl(TRUE);
+		ResetRepeatTest();
+		MessageBox(_T("반복테스트가 끝났습니다."));
+		break;
+	}
+}
+
+void CDlgMotionDlg::ResetRepeat()
+{
+	m_nRepeat = 0;
+	CString sVal;
+	sVal.Format(_T("%d"), m_nRepeat);
+	CEdit* pEdit = (CEdit*)GetDlgItem(IDC_EDIT31);					// Repeat [cnt]
+	pEdit->SetWindowTextW(sVal);
+}
+
+double CDlgMotionDlg::GetProgress()
+{
+	double dPosStart = m_stRepeatConf.dPosStart;
+	double dStep = m_stRepeatConf.dStep;
+	double dPosEnd = m_stRepeatConf.dPosEnd;
+	int nRepeat = m_stRepeatConf.nRepeat;
+
+	int nStepTotal = int((dPosEnd - dPosStart) / dStep) * nRepeat;
+	nStepTotal = nStepTotal > 0 ? nStepTotal : -1 * nStepTotal;
+	double dRatio = ((double)m_nMoveStep / (double)nStepTotal) * 100.0;
+	return dRatio;
+}
+
+void CDlgMotionDlg::DispProgress()
+{
+	CString sVal;
+	CEdit* pEdit = (CEdit*)GetDlgItem(IDC_EDIT30);					// Progress [%]
+	double dProc = GetProgress();
+	sVal.Format(_T("%.1f"), dProc);
+	pEdit->SetWindowTextW(sVal);
+}
+
+void CDlgMotionDlg::IncMoveStep()
+{
+	m_nMoveStep++;
+	DispProgress();
+}
+
+void CDlgMotionDlg::ResetMoveStep()
+{
+	m_nMoveStep = 0;
+	DispProgress();
+}
+
+void CDlgMotionDlg::IncRepeat()
+{
+	m_nRepeat++;
+	CString sVal;
+	sVal.Format(_T("%d"), m_nRepeat);
+	CEdit* pEdit = (CEdit*)GetDlgItem(IDC_EDIT31);					// Repeat [cnt]
+	pEdit->SetWindowTextW(sVal);
+}
+
+void CDlgMotionDlg::ResetRepeatTest()
+{
+	m_nStepRptTest = 0;
+	m_bReverse = FALSE;
+	StopRepeatTest();
+}
+
+BOOL CDlgMotionDlg::IsRepeatCount()
+{
+	int nRepeat = m_stRepeatConf.nRepeat;
+	if (m_nRepeat >= nRepeat)
+		return FALSE;
+	return TRUE;
+}
+
+BOOL CDlgMotionDlg::IsInc()
+{
+	double dPosStart = m_stRepeatConf.dPosStart;
+	double dPosEnd = m_stRepeatConf.dPosEnd;
+	BOOL bInc = (dPosEnd > dPosStart) ? TRUE : FALSE;
+	return bInc;
+}
+
+BOOL CDlgMotionDlg::IsPosEnd()
+{
+	double dPosStart = m_stRepeatConf.dPosStart;
+	double dStep = m_stRepeatConf.dStep;
+	double dPosEnd = m_stRepeatConf.dPosEnd;
+
+	int nAxis = m_stRepeatConf.nAxis;
+	double dPosAct = m_pEtherCat->GetActualPosition(nAxis);
+	BOOL bInc = IsInc();
+	if (!m_bReverse)
+	{
+		if (bInc)
+		{
+			if ((dPosAct + dStep) > dPosEnd)
+				return TRUE;
+			else
+				return FALSE;
+		}
+		else
+		{
+			if ((dPosAct - dStep) < dPosEnd)
+				return TRUE;
+			else
+				return FALSE;
+		}
+	}
+	else
+	{
+		if (bInc)
+		{
+			if ((dPosAct - dStep) < dPosStart)
+				return TRUE;
+			else
+				return FALSE;
+		}
+		else
+		{
+			if ((dPosAct + dStep) > dPosStart)
+				return TRUE;
+			else
+				return FALSE;
+		}
+	}
+
+	return TRUE;					// go to next step
+}
+
+BOOL CDlgMotionDlg::IsMoveDone()
+{
+	int nAxis = m_stRepeatConf.nAxis;
+	if (m_pEtherCat->IsMotionDone(nAxis))
+		return TRUE;
+	return FALSE;
+}
+
+void CDlgMotionDlg::UpdateRepeatConf()
+{
+	CComboBox* pCombo = (CComboBox*)GetDlgItem(IDC_COMBO3);			// Axis
+	CEdit* pEdit0 = (CEdit*)GetDlgItem(IDC_EDIT25);					// Start Pos [mm]
+	CEdit* pEdit1 = (CEdit*)GetDlgItem(IDC_EDIT26);					// Step [mm]
+	CEdit* pEdit2 = (CEdit*)GetDlgItem(IDC_EDIT27);					// End Pos [mm]
+	CEdit* pEdit3 = (CEdit*)GetDlgItem(IDC_EDIT28);					// Repeat [cnt]
+	CButton* pChk0 = (CButton*)GetDlgItem(IDC_CHECK26);				// Reverse
+	CButton* pChk1 = (CButton*)GetDlgItem(IDC_CHECK27);				// Optimize
+
+	CString sVal;
+	m_stRepeatConf.nAxis = pCombo->GetCurSel();
+	pEdit0->GetWindowText(sVal);
+	m_stRepeatConf.dPosStart = _ttof(sVal);
+	pEdit1->GetWindowText(sVal);
+	m_stRepeatConf.dStep = _ttof(sVal);
+	pEdit2->GetWindowText(sVal);
+	m_stRepeatConf.dPosEnd = _ttof(sVal);
+	pEdit3->GetWindowText(sVal);
+	m_stRepeatConf.nRepeat = _ttoi(sVal);
+	m_stRepeatConf.bReverse = pChk0->GetCheck();
+	m_stRepeatConf.bOptimize = pChk1->GetCheck();
+}
+
+BOOL CDlgMotionDlg::MoveStep()
+{
+	int nAxis = m_stRepeatConf.nAxis;
+	double dStep = m_stRepeatConf.dStep;
+	BOOL bOptimize = m_stRepeatConf.bOptimize;
+	double dPosCmd = m_pEtherCat->GetCommandPosition(nAxis);//m_pEtherCat->GetActualPosition(nAxis);
+	double dPos;
+
+	if (!m_bReverse)
+	{
+		if (IsInc())
+			dPos = dPosCmd + dStep;
+		else
+			dPos = dPosCmd - dStep;
+
+		if (!Move(nAxis, dPos, bOptimize))
+			return FALSE;
+	}
+	else
+	{
+		if (IsInc())
+			dPos = dPosCmd - dStep;
+		else
+			dPos = dPosCmd + dStep;
+
+		if (!Move(nAxis, dPos, bOptimize))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+BOOL CDlgMotionDlg::Move(int nID, double dTgtPos, BOOL bOptimize)
+{
+	CWnd *pWndSpd, *pWndAcc, *pWndDec;
+	CString sMsg;
+
+	switch (nID)
+	{
+	case 0:
+		pWndSpd = GetDlgItem(IDC_EDIT1);
+		pWndAcc = GetDlgItem(IDC_EDIT5);
+		pWndDec = GetDlgItem(IDC_EDIT9);
+		break;
+	case 2:
+		pWndSpd = GetDlgItem(IDC_EDIT2);
+		pWndAcc = GetDlgItem(IDC_EDIT6);
+		pWndDec = GetDlgItem(IDC_EDIT10);
+		break;
+	case 3:
+		pWndSpd = GetDlgItem(IDC_EDIT3);
+		pWndAcc = GetDlgItem(IDC_EDIT7);
+		pWndDec = GetDlgItem(IDC_EDIT11);
+		break;
+	case 4:
+		pWndSpd = GetDlgItem(IDC_EDIT4);
+		pWndAcc = GetDlgItem(IDC_EDIT8);
+		pWndDec = GetDlgItem(IDC_EDIT12);
+		break;
+	default:
+		MessageBox(_T("Not selected Axis number."));
+		return FALSE;
+	}
+
+	CString sSpd, sAcc, sDec;
+	pWndSpd->GetWindowText(sSpd);
+	pWndAcc->GetWindowText(sAcc);
+	pWndDec->GetWindowText(sDec);
+	if (sSpd.IsEmpty() || sAcc.IsEmpty() || sDec.IsEmpty())
+	{
+		AfxMessageBox(_T("Move Parmeter is empty."));
+		return FALSE;
+	}
+	double dSpd = _tstof(sSpd);
+	double dAcc = _tstof(sAcc);
+	double dDec = _tstof(sDec);
+
+	if (!m_pEtherCat->Move(nID, dTgtPos, dSpd, dAcc, dDec, TRUE, TRUE, bOptimize))
+	{
+		sMsg.Format(_T("Error Move. - %s ."), GetMotorName(nID));
+		AfxMessageBox(sMsg);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+BOOL CDlgMotionDlg::MovePosSt()
+{
+	int nAxis = m_stRepeatConf.nAxis;	
+	double dPos = m_stRepeatConf.dPosStart;
+	BOOL bOptimize = m_stRepeatConf.bOptimize;
+	if (!Move(nAxis, dPos, bOptimize))
+		return FALSE;
+	return TRUE;
+}
+
+BOOL CDlgMotionDlg::MovePosEnd()
+{
+	int nAxis = m_stRepeatConf.nAxis;
+	double dPos = m_stRepeatConf.dPosEnd;
+	BOOL bOptimize = m_stRepeatConf.bOptimize;
+	if (!Move(nAxis, dPos, bOptimize))
+		return FALSE;
+	return TRUE;
+}
+
+void CDlgMotionDlg::EnableCtrl(BOOL bEnable)
+{
+	CComboBox* pCombo = (CComboBox*)GetDlgItem(IDC_COMBO3);					// Axis
+	CEdit* pEdit0 = (CEdit*)GetDlgItem(IDC_EDIT25);							// Start Pos [mm]
+	CEdit* pEdit1 = (CEdit*)GetDlgItem(IDC_EDIT26);							// Step [mm]
+	CEdit* pEdit2 = (CEdit*)GetDlgItem(IDC_EDIT27);							// End Pos [mm]
+	CEdit* pEdit3 = (CEdit*)GetDlgItem(IDC_EDIT28);							// Repeat [cnt]
+	CButton* pChk0 = (CButton*)GetDlgItem(IDC_CHECK26);						// Reverse
+	CButton* pChk1 = (CButton*)GetDlgItem(IDC_CHECK27);						// Optimize
+
+	pCombo->EnableWindow(bEnable);
+	pEdit0->EnableWindow(bEnable);
+	pEdit1->EnableWindow(bEnable);
+	pEdit2->EnableWindow(bEnable);
+	pEdit3->EnableWindow(bEnable);
+	pChk0->EnableWindow(bEnable);
+	pChk1->EnableWindow(bEnable);
+}
+
+void CDlgMotionDlg::DispBlank()
+{
+	CEdit* pEdit = (CEdit*)GetDlgItem(IDC_EDIT29);
+	CString sDisp, sVal;
+	sVal.Format(_T("\r\n"));
+	pEdit->GetWindowText(sDisp);
+	sDisp += sVal;
+	pEdit->SetWindowText(sDisp);
+}
+
+void CDlgMotionDlg::DispPos(double dPosCmd, double dPosAct)
+{
+	CEdit* pEdit = (CEdit*)GetDlgItem(IDC_EDIT29);
+	CString sDisp, sVal;
+	sVal.Format(_T("%.6f, %.6f\r\n"), dPosCmd, dPosAct);
+	pEdit->GetWindowText(sDisp);
+	sDisp += sVal;
+	pEdit->SetWindowText(sDisp);
+}
+
+void CDlgMotionDlg::OnBnClickedButton30()	// Clear
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (IDNO == MessageBox(_T("Display창을 Clear하시겠습니까?"), 0, MB_YESNO))
+		return;
+
+	CEdit* pEdit = (CEdit*)GetDlgItem(IDC_EDIT29);
+	pEdit->SetWindowText(_T(""));
+}
+
+
+void CDlgMotionDlg::OnBnClickedButton31()	// SaveToCSV
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (IDNO == MessageBox(_T("CSV폴더에 현재날짜로 저장하시겠습니까?"), 0, MB_YESNO))
+		return;
+
+	CString sTime = GetDateTime();
+
+	CString sPath;
+	TCHAR strPrevDir[MAX_PATH];
+	DWORD dwLength = GetCurrentDirectory(MAX_PATH, strPrevDir);
+
+	sPath.Format(_T("%s\\CSV\\%s.csv"), strPrevDir, sTime);
+
+	CFileFind cFile;
+	if (cFile.FindFile(sPath))
+		DeleteFile(sPath);
+
+	CEdit* pEdit = (CEdit*)GetDlgItem(IDC_EDIT29);
+	CString sData;
+	pEdit->GetWindowText(sData);
+
+	CFile cfile;		// Bit-Stream으로 파일을 ofen.
+	if (!cfile.Open(sPath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyNone, NULL))
+	{
+		MessageBox(_T("Fail to save CSV file."));
+		return;
+	}
+	cfile.Write(sData, sData.GetLength() * sizeof(TCHAR));
+	cfile.Close();
+}
+
+CString CDlgMotionDlg::GetDateTime()
+{
+	CString sData;
+	COleDateTime oleDate = COleDateTime::GetCurrentTime();
+	sData.Format(_T("%s"), oleDate.Format(_T("%Y%m%d%H%M%S")));
+	return sData;
+}
+
+
+

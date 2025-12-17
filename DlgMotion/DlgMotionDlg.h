@@ -3,7 +3,7 @@
 //
 
 #pragma once
-
+#include <thread>
 #include "Devices/EtherCat.h"
 #include "MyBtn.h"
 
@@ -12,14 +12,39 @@
 
 enum OnOffAction { OFF, ON };
 
+#define PATH_REPEAT_CONF		_T("RepeatConf.ini")
+
+typedef struct stRepeatTest
+{
+	int			nAxis, nRepeat;
+	double		dPosStart, dStep, dPosEnd;
+	BOOL		bReverse, bOptimize;
+
+	stRepeatTest()
+	{
+		nAxis = -1;
+		nRepeat = 0;
+		dPosStart = 0.0;
+		dStep = 0.0;
+		dPosEnd = 0.0;
+		bReverse = FALSE;
+		bOptimize = FALSE;
+	}
+}RptTest;
+
 
 // CDlgMotionDlg 대화 상자
 class CDlgMotionDlg : public CDialog
 {
+	BOOL m_bThreadAlive;
+	std::thread t0;
+	void ThreadStart();
+	void ThreadStop();
+
 	CEtherCat *m_pEtherCat;
 	int m_nStatus[MAX_AXIS];
 	BOOL m_bTIM_DISP_ENC;
-	int m_nCurSelMaster, m_nCurSelSlaver;
+	int m_nCurSelMaster, m_nCurSelSlaver, m_nCurSelRepeatAxis;
 	CMyBtn myBtnJogP[4], myBtnJogM[4];
 
 	double m_dEncAct[MAX_AXIS], m_dEncCmd[MAX_AXIS];
@@ -40,15 +65,41 @@ class CDlgMotionDlg : public CDialog
 	void DispLimitSens();
 	void DispIoIn();
 	void DispIoOut();
-
 	void SetIoOut();
-
 	void CheckBtnStatus();
-
 	void InitCombo();
 	CString GetMotorName(int nID);
-
+	BOOL Move(int nID, double dTgtPos, BOOL bOptimize = FALSE);
 	BOOL Move(int nID, CWnd* pWndTgtPos, CWnd* pWndSpd, CWnd* pWndAcc, CWnd* pWndDec);
+
+	stRepeatTest m_stRepeatConf;
+	void DispRepeatConf();
+	void LoadRepeatConf();
+	void SaveRepeatConf();
+	void StartRepeatTest();
+	void StopRepeatTest();
+
+	BOOL m_bRepeatTest, m_bReverse;
+	int m_nStepRptTest, m_nRepeat, m_nMoveStep;
+	void DoRepeatTest();
+	void UpdateRepeatConf();
+	void EnableCtrl(BOOL bEnable=TRUE);
+	BOOL MovePosSt();
+	BOOL MoveStep();
+	BOOL MovePosEnd();
+	BOOL IsPosEnd();
+	BOOL IsMoveDone();
+	BOOL IsInc();
+	void DispBlank();
+	void DispPos(double dPosCmd, double dPosAct);
+	void ResetRepeatTest();
+	BOOL IsRepeatCount();
+	void IncRepeat();
+	void ResetRepeat();
+	void DispProgress();
+	double GetProgress();
+	void IncMoveStep();
+	void ResetMoveStep();
 
 // 생성입니다.
 public:
@@ -67,14 +118,21 @@ public:
 	void SwMyBtnUp(int nCtrlID);
 	void ResetMotion(int nMsId);
 
+	static void ProcThrd0(const LPVOID lpContext);
+	BOOL IsRepeatTest();
+	CString GetDateTime();
+
 // 대화 상자 데이터입니다.
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_DLGMOTION_DIALOG };
 #endif
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 지원입니다.
 
+protected:
+	BOOL Proc0();
+	BOOL ThreadIsAlive();
 
 // 구현입니다.
 protected:
@@ -85,6 +143,7 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
+
 public:
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnBnClickedCancel();
@@ -124,4 +183,8 @@ public:
 	afx_msg void OnBnClickedCheck23();
 	afx_msg void OnBnClickedCheck24();
 	afx_msg void OnBnClickedCheck25();
+	afx_msg void OnSelchangeCombo3();
+	afx_msg void OnBnClickedCheck27();
+	afx_msg void OnBnClickedButton30();
+	afx_msg void OnBnClickedButton31();
 };
