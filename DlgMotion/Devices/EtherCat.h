@@ -14,7 +14,8 @@
 
 
 #define PATH_MOTION_PARAM		_T("MotionParam.ini")
-#define MAX_AXIS 4
+#define MAX_AXIS 8
+#define MAX_AXIS_UI 4
 typedef enum { M_CCW = -1, M_CW = 1 } MOTION_DIR;
 
 class CEtherCat : public CWnd

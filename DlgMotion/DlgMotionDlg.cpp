@@ -27,8 +27,10 @@ CDlgMotionDlg::CDlgMotionDlg(CWnd* pParent /*=NULL*/)
 	m_nCurSelMaster = -1;
 	m_nCurSelSlaver = -1;
 	m_nCurSelRepeatAxis = -1;
+	m_nCurSelAxis = -1;
 	m_bRepeatTest = FALSE;
 	m_bReverse = FALSE;
+	m_bStepNext = FALSE;
 	m_nRepeat = 0;
 	m_nStepRptTest = 0;
 	m_nMoveStep = 0;
@@ -88,6 +90,9 @@ BEGIN_MESSAGE_MAP(CDlgMotionDlg, CDialog)
 	ON_BN_CLICKED(IDC_CHECK27, &CDlgMotionDlg::OnBnClickedCheck27)
 	ON_BN_CLICKED(IDC_BUTTON30, &CDlgMotionDlg::OnBnClickedButton30)
 	ON_BN_CLICKED(IDC_BUTTON31, &CDlgMotionDlg::OnBnClickedButton31)
+	ON_BN_CLICKED(IDC_CHECK29, &CDlgMotionDlg::OnBnClickedCheck29)
+	ON_BN_CLICKED(IDC_CHECK30, &CDlgMotionDlg::OnBnClickedCheck30)
+	ON_CBN_SELCHANGE(IDC_COMBO4, &CDlgMotionDlg::OnSelchangeCombo4)
 END_MESSAGE_MAP()
 
 
@@ -148,10 +153,7 @@ BOOL CDlgMotionDlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	Init(); // Load MotionParam.ini
-	InitDlg();
-
-	DispMotorType();
-	DispMoveConf();
+	DispChangeAxis();
 	DispRepeatConf();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
@@ -211,7 +213,7 @@ void CDlgMotionDlg::Init()
 	SetIoOut();
 
 	ThreadInit();	// GetEnc();
-	ThreadStart();	// DoRepeatTest();
+	//ThreadStart();	// DoRepeatTest();
 
 	int nTotalAxis = m_pEtherCat->GetTotalAxis();
 
@@ -282,6 +284,8 @@ void CDlgMotionDlg::Init()
 
 	InitCombo();
 	InitBtn();
+
+	LoadRepeatConf();
 }
 
 void CDlgMotionDlg::InitBtn()
@@ -311,7 +315,7 @@ void CDlgMotionDlg::Close()
 {
 	ThreadStop();
 	Sleep(30);
-	t0.join();
+	//t0.join();
 	Sleep(30);
 	ThreadKill();
 
@@ -349,6 +353,10 @@ UINT CDlgMotionDlg::ThreadProc0(LPVOID lpContext)
 		pThread->GetEnc();
 		pThread->GetIoIn();
 		pThread->GetIoOut();
+		if (pThread->IsRepeatTest())
+		{
+			pThread->DoRepeatTest();
+		}
 		Sleep(30);
 	}
 	pThread->m_bThread[0] = FALSE;
@@ -447,30 +455,52 @@ void CDlgMotionDlg::DispEnc()
 	CWnd* pWndAct = NULL;
 	CString strCmd, strAct;
 
-	for (int i = 0; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
+	for (int nID = m_nCurSelAxis; nID < m_pEtherCat->m_ParamCtrl.nTotAxis; nID++)
 	{
-		switch (i)
+		if (nID == m_nCurSelAxis + 0)
 		{
-		case 0:
 			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS0);
 			pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS0);
-			break;
-		case 1:
+		}
+		else if (nID == m_nCurSelAxis + 1)
+		{
 			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS1);
 			pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS1);
-			break;
-		case 2:
+		}
+		else if (nID == m_nCurSelAxis + 2)
+		{
 			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS2);
 			pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS2);
-			break;
-		case 3:
+		}
+		else if (nID == m_nCurSelAxis + 3)
+		{
 			pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS3);
 			pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS3);
-			break;
 		}
+		else
+			break;
+		//switch (i)
+		//{
+		//case 0:
+		//	pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS0);
+		//	pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS0);
+		//	break;
+		//case 1:
+		//	pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS1);
+		//	pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS1);
+		//	break;
+		//case 2:
+		//	pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS2);
+		//	pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS2);
+		//	break;
+		//case 3:
+		//	pWndCmd = GetDlgItem(IDC_STATIC_COMMAND_AXIS3);
+		//	pWndAct = GetDlgItem(IDC_STATIC_ACTUAL_AXIS3);
+		//	break;
+		//}
 
-		strCmd.Format(_T("%.3f"), m_dEncCmd[i]);
-		strAct.Format(_T("%.3f"), m_dEncAct[i]);
+		strCmd.Format(_T("%.3f"), m_dEncCmd[nID]);
+		strAct.Format(_T("%.3f"), m_dEncAct[nID]);
 		pWndCmd->SetWindowText(strCmd);
 		pWndAct->SetWindowText(strAct);
 	}
@@ -500,11 +530,12 @@ void CDlgMotionDlg::DispLimitSens()
 	pCtlChkBtnLimitNeg[2] = (CButton*)GetDlgItem(IDC_CHECK19);
 	pCtlChkBtnLimitNeg[3] = (CButton*)GetDlgItem(IDC_CHECK20);
 
-	for (int i = 0; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
+	for (int nID = m_nCurSelAxis; nID < m_pEtherCat->m_ParamCtrl.nTotAxis; nID++)
 	{
-		pCtlChkBtnLimitNeg[i]->SetCheck(m_pEtherCat->CheckLimitSwitch(i, MINUS));
-		pCtlChkBtnLimitHome[i]->SetCheck(m_pEtherCat->CheckHomeSwitch(i));
-		pCtlChkBtnLimitPos[i]->SetCheck(m_pEtherCat->CheckLimitSwitch(i, PLUS));
+		int nIdx = nID - m_nCurSelAxis;
+		pCtlChkBtnLimitNeg[nIdx]->SetCheck(m_pEtherCat->CheckLimitSwitch(nID, MINUS));
+		pCtlChkBtnLimitHome[nIdx]->SetCheck(m_pEtherCat->CheckHomeSwitch(nID));
+		pCtlChkBtnLimitPos[nIdx]->SetCheck(m_pEtherCat->CheckLimitSwitch(nID, PLUS));
 	}
 }
 
@@ -515,54 +546,83 @@ void CDlgMotionDlg::DispStatus()
 
 	CWnd* pWnd = NULL;
 	CString str;
-	for (int i = 0; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
+	for (int nID = m_nCurSelAxis; nID < m_pEtherCat->m_ParamCtrl.nTotAxis; nID++)
 	{
-		switch (m_nStatus[i])
-		{
-		case MPIStateINVALID:
+		if (m_nStatus[nID] == MPIStateINVALID)
 			str = "Invalid";
-			break;
-		case MPIStateIDLE:
+		else if (m_nStatus[nID] == MPIStateIDLE)
 			str = "Idle";
-			break;
-		case MPIStateMOVING:
+		else if (m_nStatus[nID] == MPIStateMOVING)
 			str = "Moving";
-			break;
-		case MPIStateSTOPPING:
+		else if (m_nStatus[nID] == MPIStateSTOPPING)
 			str = "Stopping";
-			break;
-		case MPIStateSTOPPED:
+		else if (m_nStatus[nID] == MPIStateSTOPPED)
 			str = "Stopped";
-			break;
-		case MPIStateSTOPPING_ERROR:
+		else if (m_nStatus[nID] == MPIStateSTOPPING_ERROR)
 			str = "StoppingError";
-			break;
-		case MPIStateERROR:
+		else if (m_nStatus[nID] == MPIStateERROR)
 			str = "Error";
-			break;
-		case MPIStateEND:
+		else if (m_nStatus[nID] == MPIStateEND)
 			str = "End";
-			break;
-		default:
+		else 
 			str = "Unknown";
-			break;
-		}
 
-		switch (i)
-		{
-		case 0:
-			pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS0); 
-			break;
-		case 1:
+		if (nID == m_nCurSelAxis + 0)
+			pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS0);
+		else if (nID == m_nCurSelAxis + 1)
 			pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS1);
-			break;
-		case 2:
+		else if (nID == m_nCurSelAxis + 2)
 			pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS2);
-			break;
-		case 3:
+		else if (nID == m_nCurSelAxis + 3)
 			pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS3);
+		else
 			break;
-		}
+		//switch (m_nStatus[i])
+		//{
+		//case MPIStateINVALID:
+		//	str = "Invalid";
+		//	break;
+		//case MPIStateIDLE:
+		//	str = "Idle";
+		//	break;
+		//case MPIStateMOVING:
+		//	str = "Moving";
+		//	break;
+		//case MPIStateSTOPPING:
+		//	str = "Stopping";
+		//	break;
+		//case MPIStateSTOPPED:
+		//	str = "Stopped";
+		//	break;
+		//case MPIStateSTOPPING_ERROR:
+		//	str = "StoppingError";
+		//	break;
+		//case MPIStateERROR:
+		//	str = "Error";
+		//	break;
+		//case MPIStateEND:
+		//	str = "End";
+		//	break;
+		//default:
+		//	str = "Unknown";
+		//	break;
+		//}
+
+		//switch (i)
+		//{
+		//case 0:
+		//	pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS0); 
+		//	break;
+		//case 1:
+		//	pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS1);
+		//	break;
+		//case 2:
+		//	pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS2);
+		//	break;
+		//case 3:
+		//	pWnd = GetDlgItem(IDC_STATIC_STATUS_AXIS3);
+		//	break;
+		//}
 
 		pWnd->SetWindowText(str);
 	}
@@ -575,23 +635,32 @@ void CDlgMotionDlg::DispMotorType()
 
 	CButton* pCtlChkBtn = NULL;
 
-	for (int i = 0; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
+	for (int i = m_nCurSelAxis; i < m_pEtherCat->m_ParamCtrl.nTotAxis; i++)
 	{
-		switch (i)
-		{
-		case 0:
+		if (i == m_nCurSelAxis)
 			pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK5);
-			break;
-		case 1:
+		else if (i == m_nCurSelAxis + 1)
 			pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK6);
-			break;
-		case 2:
+		else if (i == m_nCurSelAxis + 2)
 			pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK7);
-			break;
-		case 3:
+		else if (i == m_nCurSelAxis + 3)
 			pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK8);
-			break;
-		}
+
+		//switch (i)
+		//{
+		//case 0:
+		//	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK5);
+		//	break;
+		//case 1:
+		//	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK6);
+		//	break;
+		//case 2:
+		//	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK7);
+		//	break;
+		//case 3:
+		//	pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK8);
+		//	break;
+		//}
 
 		BOOL bChk = m_pEtherCat->m_pParamMotor[i].bType;
 
@@ -633,24 +702,62 @@ void CDlgMotionDlg::DispMoveConf()
 	pWnd[15] = GetDlgItem(IDC_EDIT12);
 
 	CString sVal;
-	for (int nID = 0; nID < m_pEtherCat->m_ParamCtrl.nTotMotion; nID++)
+	for (int nID = m_nCurSelAxis; nID < m_pEtherCat->m_ParamCtrl.nTotMotion; nID++)
 	{
+		int nIdx = nID - m_nCurSelAxis;
+		if (nIdx >= MAX_AXIS_UI)
+			break;
+
 		// P2P Speed
 		sVal.Format(_T("%.3f"), m_pEtherCat->m_pParamMotion[nID].Speed.fSpd);
-		pWnd[nID]->SetWindowText(sVal);
+		pWnd[nIdx]->SetWindowText(sVal);
 
 		// Jog Speed
 		sVal.Format(_T("%.3f"), m_pEtherCat->m_pParamMotion[nID].Speed.fJogMidSpd);
-		pWnd[nID + 4]->SetWindowText(sVal);
+		pWnd[nIdx + 4]->SetWindowText(sVal);
 
 		// Acceleration
 		sVal.Format(_T("%.3f"), m_pEtherCat->m_pParamMotion[nID].Speed.fAcc);
-		pWnd[nID + 8]->SetWindowText(sVal);
+		pWnd[nIdx + 8]->SetWindowText(sVal);
 
 		// Deceleration
 		sVal.Format(_T("%.3f"), m_pEtherCat->m_pParamMotion[nID].Speed.fDec);
-		pWnd[nID + 12]->SetWindowText(sVal);
+		pWnd[nIdx + 12]->SetWindowText(sVal);
 	}
+}
+
+void CDlgMotionDlg::DispMotorEnable(int nWndIdx)
+{
+	CButton* pCtlChkBtn;
+
+	switch (nWndIdx)
+	{
+	case 0:
+		pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK1);
+		break;
+	case 1:
+		pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK2);
+		break;
+	case 2:
+		pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK3);
+		break;
+	case 3:
+		pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK4);
+		break;
+	default:
+		return;
+	}
+	int nID = m_nCurSelAxis + nWndIdx;
+	if (m_pEtherCat->m_ParamCtrl.nTotAxis > nID)
+	{
+		BOOL bChk = m_pEtherCat->IsEnable(nID);
+		pCtlChkBtn->SetCheck(bChk);
+		if (bChk)
+			pCtlChkBtn->SetWindowText(_T("ON"));
+		else
+			pCtlChkBtn->SetWindowText(_T("OFF"));
+	}
+
 }
 
 void CDlgMotionDlg::OnBnClickedCheck1()
@@ -660,10 +767,11 @@ void CDlgMotionDlg::OnBnClickedCheck1()
 		return;
 
 	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK1);
-	if (m_pEtherCat->m_ParamCtrl.nTotAxis > 0)
+	int nID = m_nCurSelAxis + 0;
+	if (m_pEtherCat->m_ParamCtrl.nTotAxis > nID)
 	{
 		BOOL bChk = pCtlChkBtn->GetCheck();
-		m_pEtherCat->ServoOnOff(0, bChk);
+		m_pEtherCat->ServoOnOff(nID, bChk);
 		if (bChk)
 			pCtlChkBtn->SetWindowText(_T("ON"));
 		else
@@ -679,10 +787,11 @@ void CDlgMotionDlg::OnBnClickedCheck2()
 		return;
 
 	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK2);
-	if (m_pEtherCat->m_ParamCtrl.nTotAxis > 1)
+	int nID = m_nCurSelAxis + 1;
+	if (m_pEtherCat->m_ParamCtrl.nTotAxis > nID)
 	{
 		BOOL bChk = pCtlChkBtn->GetCheck();
-		m_pEtherCat->ServoOnOff(1, bChk);
+		m_pEtherCat->ServoOnOff(nID, bChk);
 		if (bChk)
 			pCtlChkBtn->SetWindowText(_T("ON"));
 		else
@@ -698,10 +807,11 @@ void CDlgMotionDlg::OnBnClickedCheck3()
 		return;
 
 	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK3);
-	if (m_pEtherCat->m_ParamCtrl.nTotAxis > 2)
+	int nID = m_nCurSelAxis + 2;
+	if (m_pEtherCat->m_ParamCtrl.nTotAxis > nID)
 	{
 		BOOL bChk = pCtlChkBtn->GetCheck();
-		m_pEtherCat->ServoOnOff(2, bChk);
+		m_pEtherCat->ServoOnOff(nID, bChk);
 		if (bChk)
 			pCtlChkBtn->SetWindowText(_T("ON"));
 		else
@@ -717,10 +827,11 @@ void CDlgMotionDlg::OnBnClickedCheck4()
 		return;
 
 	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK4);
-	if (m_pEtherCat->m_ParamCtrl.nTotAxis > 3)
+	int nID = m_nCurSelAxis + 3;
+	if (m_pEtherCat->m_ParamCtrl.nTotAxis > nID)
 	{
 		BOOL bChk = pCtlChkBtn->GetCheck();
-		m_pEtherCat->ServoOnOff(3, bChk);
+		m_pEtherCat->ServoOnOff(nID, bChk);
 		if (bChk)
 			pCtlChkBtn->SetWindowText(_T("ON"));
 		else
@@ -738,17 +849,20 @@ void CDlgMotionDlg::InitCombo()
 	CComboBox* pCtlComboMaster = (CComboBox*)GetDlgItem(IDC_COMBO1);
 	CComboBox* pCtlComboSlaver = (CComboBox*)GetDlgItem(IDC_COMBO2);
 	CComboBox* pCtlComboRepeatAxis = (CComboBox*)GetDlgItem(IDC_COMBO3);
+	CComboBox* pCtlComboAxis = (CComboBox*)GetDlgItem(IDC_COMBO4);
 	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK21);
 
 	pCtlComboMaster->ResetContent();
 	pCtlComboSlaver->ResetContent();
 	pCtlComboRepeatAxis->ResetContent();
+	pCtlComboAxis->ResetContent();
 
 	int nTotalAxis = m_pEtherCat->GetTotalAxis();
 	for (nID = 0; nID < nTotalAxis; nID++)
 	{
 		pCtlComboMaster->InsertString(nID, m_pEtherCat->m_pParamAxis[nID].sName);
 		pCtlComboRepeatAxis->InsertString(nID, m_pEtherCat->m_pParamAxis[nID].sName);
+		pCtlComboAxis->InsertString(nID, m_pEtherCat->m_pParamAxis[nID].sName);
 	}
 
 	pCtlComboSlaver->EnableWindow(FALSE);
@@ -938,6 +1052,10 @@ CString CDlgMotionDlg::GetMotorName(int nID)
 	if (!m_pEtherCat)
 		return _T("");
 
+	int nTotalAxis = m_pEtherCat->GetTotalAxis();
+	if(nID >= nTotalAxis)
+		return _T("");
+
 	return m_pEtherCat->m_pParamAxis[nID].sName;
 }
 
@@ -947,7 +1065,8 @@ void CDlgMotionDlg::OnBnClickedButton1()
 	if (!m_pEtherCat)
 		return;
 
-	m_pEtherCat->Clear(0);
+	if(m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+		m_pEtherCat->Clear(m_nCurSelAxis + 0);
 }
 
 
@@ -957,7 +1076,8 @@ void CDlgMotionDlg::OnBnClickedButton2()
 	if (!m_pEtherCat)
 		return;
 
-	m_pEtherCat->Clear(1);
+	if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+		m_pEtherCat->Clear(m_nCurSelAxis + 1);
 }
 
 
@@ -967,7 +1087,8 @@ void CDlgMotionDlg::OnBnClickedButton3()
 	if (!m_pEtherCat)
 		return;
 
-	m_pEtherCat->Clear(2);
+	if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+		m_pEtherCat->Clear(m_nCurSelAxis + 2);
 }
 
 
@@ -977,7 +1098,8 @@ void CDlgMotionDlg::OnBnClickedButton4()
 	if (!m_pEtherCat)
 		return;
 
-	m_pEtherCat->Clear(3);
+	if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+		m_pEtherCat->Clear(m_nCurSelAxis + 3);
 }
 
 
@@ -987,7 +1109,8 @@ void CDlgMotionDlg::OnBnClickedButton5()
 	if (!m_pEtherCat)
 		return;
 
-	m_pEtherCat->SetPosition(0, 0.0);
+	if (m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+		m_pEtherCat->SetPosition(m_nCurSelAxis + 0, 0.0);
 }
 
 
@@ -997,7 +1120,8 @@ void CDlgMotionDlg::OnBnClickedButton6()
 	if (!m_pEtherCat)
 		return;
 
-	m_pEtherCat->SetPosition(1, 0.0);
+	if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+		m_pEtherCat->SetPosition(m_nCurSelAxis + 1, 0.0);
 }
 
 
@@ -1007,7 +1131,8 @@ void CDlgMotionDlg::OnBnClickedButton7()
 	if (!m_pEtherCat)
 		return;
 
-	m_pEtherCat->SetPosition(2, 0.0);
+	if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+		m_pEtherCat->SetPosition(m_nCurSelAxis + 2, 0.0);
 }
 
 
@@ -1017,7 +1142,8 @@ void CDlgMotionDlg::OnBnClickedButton8()
 	if (!m_pEtherCat)
 		return;
 
-	m_pEtherCat->SetPosition(3, 0.0);
+	if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+		m_pEtherCat->SetPosition(m_nCurSelAxis + 3, 0.0);
 }
 
 
@@ -1030,7 +1156,8 @@ void CDlgMotionDlg::OnBnClickedButton9()
 	CWnd* pWndAcc = GetDlgItem(IDC_EDIT5);
 	CWnd* pWndDec = GetDlgItem(IDC_EDIT9);
 
-	Move(0, pWndPos1, pWndSpd, pWndAcc, pWndDec);
+	if (m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+		Move(m_nCurSelAxis + 0, pWndPos1, pWndSpd, pWndAcc, pWndDec);
 }
 
 
@@ -1043,7 +1170,8 @@ void CDlgMotionDlg::OnBnClickedButton10()
 	CWnd* pWndAcc = GetDlgItem(IDC_EDIT6);
 	CWnd* pWndDec = GetDlgItem(IDC_EDIT10);
 
-	Move(1, pWndPos1, pWndSpd, pWndAcc, pWndDec);
+	if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+		Move(m_nCurSelAxis + 1, pWndPos1, pWndSpd, pWndAcc, pWndDec);
 }
 
 
@@ -1056,7 +1184,8 @@ void CDlgMotionDlg::OnBnClickedButton11()
 	CWnd* pWndAcc = GetDlgItem(IDC_EDIT7);
 	CWnd* pWndDec = GetDlgItem(IDC_EDIT11);
 
-	Move(2, pWndPos1, pWndSpd, pWndAcc, pWndDec);
+	if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+		Move(m_nCurSelAxis + 2, pWndPos1, pWndSpd, pWndAcc, pWndDec);
 }
 
 
@@ -1069,7 +1198,8 @@ void CDlgMotionDlg::OnBnClickedButton12()
 	CWnd* pWndAcc = GetDlgItem(IDC_EDIT8);
 	CWnd* pWndDec = GetDlgItem(IDC_EDIT12);
 
-	Move(3, pWndPos1, pWndSpd, pWndAcc, pWndDec);
+	if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+		Move(m_nCurSelAxis + 3, pWndPos1, pWndSpd, pWndAcc, pWndDec);
 }
 
 
@@ -1082,7 +1212,8 @@ void CDlgMotionDlg::OnBnClickedButton13()
 	CWnd* pWndAcc = GetDlgItem(IDC_EDIT5);
 	CWnd* pWndDec = GetDlgItem(IDC_EDIT9);
 
-	Move(0, pWndPos2, pWndSpd, pWndAcc, pWndDec);
+	if (m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+		Move(m_nCurSelAxis + 0, pWndPos2, pWndSpd, pWndAcc, pWndDec);
 }
 
 
@@ -1095,7 +1226,8 @@ void CDlgMotionDlg::OnBnClickedButton14()
 	CWnd* pWndAcc = GetDlgItem(IDC_EDIT6);
 	CWnd* pWndDec = GetDlgItem(IDC_EDIT10);
 
-	Move(1, pWndPos2, pWndSpd, pWndAcc, pWndDec);
+	if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+		Move(m_nCurSelAxis + 1, pWndPos2, pWndSpd, pWndAcc, pWndDec);
 }
 
 
@@ -1108,7 +1240,8 @@ void CDlgMotionDlg::OnBnClickedButton15()
 	CWnd* pWndAcc = GetDlgItem(IDC_EDIT7);
 	CWnd* pWndDec = GetDlgItem(IDC_EDIT11);
 
-	Move(2, pWndPos2, pWndSpd, pWndAcc, pWndDec);
+	if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+		Move(m_nCurSelAxis + 2, pWndPos2, pWndSpd, pWndAcc, pWndDec);
 }
 
 
@@ -1121,7 +1254,8 @@ void CDlgMotionDlg::OnBnClickedButton16()
 	CWnd* pWndAcc = GetDlgItem(IDC_EDIT8);
 	CWnd* pWndDec = GetDlgItem(IDC_EDIT12);
 
-	Move(3, pWndPos2, pWndSpd, pWndAcc, pWndDec);
+	if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+		Move(m_nCurSelAxis + 3, pWndPos2, pWndSpd, pWndAcc, pWndDec);
 }
 
 BOOL CDlgMotionDlg::Move(int nID, CWnd* pWndTgtPos, CWnd* pWndSpd, CWnd* pWndAcc, CWnd* pWndDec)
@@ -1183,28 +1317,36 @@ void CDlgMotionDlg::SwMyBtnDown(int nCtrlID)
 	switch (nCtrlID)
 	{
 	case IDC_BUTTON17: // Jog -
-		m_pEtherCat->VMove(0, M_CCW);
+		if (m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+			m_pEtherCat->VMove(m_nCurSelAxis + 0, M_CCW);
 		break;
 	case IDC_BUTTON18: // Jog +
-		m_pEtherCat->VMove(0, M_CW);
+		if (m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+			m_pEtherCat->VMove(m_nCurSelAxis + 0, M_CW);
 		break;
 	case IDC_BUTTON19: // Jog -
-		m_pEtherCat->VMove(1, M_CCW);
+		if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+			m_pEtherCat->VMove(m_nCurSelAxis + 1, M_CCW);
 		break;
 	case IDC_BUTTON20: // Jog +
-		m_pEtherCat->VMove(1, M_CW);
+		if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+			m_pEtherCat->VMove(m_nCurSelAxis + 1, M_CW);
 		break;
 	case IDC_BUTTON21: // Jog -
-		m_pEtherCat->VMove(2, M_CCW);
+		if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+			m_pEtherCat->VMove(m_nCurSelAxis + 2, M_CCW);
 		break;
 	case IDC_BUTTON22: // Jog +
-		m_pEtherCat->VMove(2, M_CW);
+		if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+			m_pEtherCat->VMove(m_nCurSelAxis + 2, M_CW);
 		break;
 	case IDC_BUTTON23: // Jog -
-		m_pEtherCat->VMove(3, M_CCW);
+		if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+			m_pEtherCat->VMove(m_nCurSelAxis + 3, M_CCW);
 		break;
 	case IDC_BUTTON24: // Jog +
-		m_pEtherCat->VMove(3, M_CW);
+		if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+			m_pEtherCat->VMove(m_nCurSelAxis + 3, M_CW);
 		break;
 	}
 }
@@ -1217,36 +1359,60 @@ void CDlgMotionDlg::SwMyBtnUp(int nCtrlID)
 	switch (nCtrlID)
 	{
 	case IDC_BUTTON17: // Jog -
-		m_pEtherCat->EStop(0);
-		ResetMotion(0);
+		if (m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->EStop(m_nCurSelAxis + 0);
+			ResetMotion(m_nCurSelAxis + 0);
+		}
 		break;
 	case IDC_BUTTON18: // Jog +
-		m_pEtherCat->EStop(0);
-		ResetMotion(0);
+		if (m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->EStop(m_nCurSelAxis + 0);
+			ResetMotion(m_nCurSelAxis + 0);
+		}
 		break;
 	case IDC_BUTTON19: // Jog -
-		m_pEtherCat->EStop(1);
-		ResetMotion(1);
+		if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->EStop(m_nCurSelAxis + 1);
+			ResetMotion(m_nCurSelAxis + 1);
+		}
 		break;
 	case IDC_BUTTON20: // Jog +
-		m_pEtherCat->EStop(1);
-		ResetMotion(1);
+		if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->EStop(m_nCurSelAxis + 1);
+			ResetMotion(m_nCurSelAxis + 1);
+		}
 		break;
 	case IDC_BUTTON21: // Jog -
-		m_pEtherCat->EStop(2);
-		ResetMotion(2);
+		if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->EStop(m_nCurSelAxis + 2);
+			ResetMotion(m_nCurSelAxis + 2);
+		}
 		break;
 	case IDC_BUTTON22: // Jog +
-		m_pEtherCat->EStop(2);
-		ResetMotion(2);
+		if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->EStop(m_nCurSelAxis + 2);
+			ResetMotion(m_nCurSelAxis + 2);
+		}
 		break;
 	case IDC_BUTTON23: // Jog -
-		m_pEtherCat->EStop(3);
-		ResetMotion(3);
+		if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->EStop(m_nCurSelAxis + 3);
+			ResetMotion(m_nCurSelAxis + 3);
+		}
 		break;
 	case IDC_BUTTON24: // Jog +
-		m_pEtherCat->EStop(3);
-		ResetMotion(3);
+		if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->EStop(m_nCurSelAxis + 3);
+			ResetMotion(m_nCurSelAxis + 3);
+		}
 		break;
 	}
 }
@@ -1286,22 +1452,23 @@ void CDlgMotionDlg::CheckBtnStatus()
 
 	int nTotalAxis = m_pEtherCat->GetTotalAxis();
 
-	for (int nID = 0; nID < MAX_AXIS; nID++)
+	for (int nIdx = 0; nIdx < MAX_AXIS_UI; nIdx++)
 	{
+		int nID = nIdx + m_nCurSelAxis;
 		if (nID < nTotalAxis)
 		{
 			if (m_pEtherCat->IsHomeDone(nID))
 			{
-				pBtnHome[nID]->EnableWindow(TRUE);
+				pBtnHome[nIdx]->EnableWindow(TRUE);
 			}
 			else
 			{
-				pBtnHome[nID]->EnableWindow(FALSE);
+				pBtnHome[nIdx]->EnableWindow(FALSE);
 			}
 		}
 		else
 		{
-			pBtnHome[nID]->EnableWindow(FALSE);
+			pBtnHome[nIdx]->EnableWindow(FALSE);
 		}
 	}
 }
@@ -1315,12 +1482,16 @@ void CDlgMotionDlg::OnBnClickedButton25()
 	CString sMsg;
 
 	// Homming
-	if(m_pEtherCat->IsHomeDone(0))
-		m_pEtherCat->SearchHomePos(0);
-	else
+	int nID = 0 + m_nCurSelAxis;
+	if (nID < m_pEtherCat->GetTotalAxis())
 	{
-		sMsg.Format(_T("%s is homming now."), GetMotorName(0));
-		AfxMessageBox(sMsg);
+		if(m_pEtherCat->IsHomeDone(nID))
+			m_pEtherCat->SearchHomePos(nID);
+		else
+		{
+			sMsg.Format(_T("%s is homming now."), GetMotorName(nID));
+			AfxMessageBox(sMsg);
+		}
 	}
 }
 
@@ -1334,12 +1505,16 @@ void CDlgMotionDlg::OnBnClickedButton26()
 	CString sMsg;
 
 	// Homming
-	if (m_pEtherCat->IsHomeDone(1))
-		m_pEtherCat->SearchHomePos(1);
-	else
+	int nID = 1 + m_nCurSelAxis;
+	if (nID < m_pEtherCat->GetTotalAxis())
 	{
-		sMsg.Format(_T("%s is homming now."), GetMotorName(1));
-		AfxMessageBox(sMsg);
+		if (m_pEtherCat->IsHomeDone(nID))
+			m_pEtherCat->SearchHomePos(nID);
+		else
+		{
+			sMsg.Format(_T("%s is homming now."), GetMotorName(nID));
+			AfxMessageBox(sMsg);
+		}
 	}
 }
 
@@ -1353,12 +1528,16 @@ void CDlgMotionDlg::OnBnClickedButton27()
 	CString sMsg;
 
 	// Homming
-	if (m_pEtherCat->IsHomeDone(2))
-		m_pEtherCat->SearchHomePos(2);
-	else
+	int nID = 2 + m_nCurSelAxis;
+	if (nID < m_pEtherCat->GetTotalAxis())
 	{
-		sMsg.Format(_T("%s is homming now."), GetMotorName(2));
-		AfxMessageBox(sMsg);
+		if (m_pEtherCat->IsHomeDone(nID))
+			m_pEtherCat->SearchHomePos(nID);
+		else
+		{
+			sMsg.Format(_T("%s is homming now."), GetMotorName(nID));
+			AfxMessageBox(sMsg);
+		}
 	}
 }
 
@@ -1372,12 +1551,16 @@ void CDlgMotionDlg::OnBnClickedButton28()
 	CString sMsg;
 
 	// Homming
-	if (m_pEtherCat->IsHomeDone(3))
-		m_pEtherCat->SearchHomePos(3);
-	else
+	int nID = 3 + m_nCurSelAxis;
+	if (nID < m_pEtherCat->GetTotalAxis())
 	{
-		sMsg.Format(_T("%s is homming now."), GetMotorName(3));
-		AfxMessageBox(sMsg);
+		if (m_pEtherCat->IsHomeDone(nID))
+			m_pEtherCat->SearchHomePos(nID);
+		else
+		{
+			sMsg.Format(_T("%s is homming now."), GetMotorName(nID));
+			AfxMessageBox(sMsg);
+		}
 	}
 }
 
@@ -1545,15 +1728,21 @@ void CDlgMotionDlg::OnBnClickedCheck22()
 
 	if (bEnable)
 	{
-		m_pEtherCat->SetHWLimitSensorAction(0, PLUS, MPIActionE_STOP);
-		m_pEtherCat->SetHWLimitSensorAction(0, MINUS, MPIActionE_STOP);
-		((CButton*)GetDlgItem(IDC_CHECK22))->SetWindowText(_T("Enable"));
+		if (m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 0, PLUS, MPIActionE_STOP);
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 0, MINUS, MPIActionE_STOP);
+			((CButton*)GetDlgItem(IDC_CHECK22))->SetWindowText(_T("Enable"));
+		}
 	}
 	else
 	{
-		m_pEtherCat->SetHWLimitSensorAction(0, PLUS, MPIActionNONE);
-		m_pEtherCat->SetHWLimitSensorAction(0, MINUS, MPIActionNONE);
-		((CButton*)GetDlgItem(IDC_CHECK22))->SetWindowText(_T("Disable"));
+		if (m_nCurSelAxis + 0 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 0, PLUS, MPIActionNONE);
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 0, MINUS, MPIActionNONE);
+			((CButton*)GetDlgItem(IDC_CHECK22))->SetWindowText(_T("Disable"));
+		}
 	}
 }
 
@@ -1568,15 +1757,21 @@ void CDlgMotionDlg::OnBnClickedCheck23()
 
 	if (bEnable)
 	{
-		m_pEtherCat->SetHWLimitSensorAction(1, PLUS, MPIActionE_STOP);
-		m_pEtherCat->SetHWLimitSensorAction(1, MINUS, MPIActionE_STOP);
-		((CButton*)GetDlgItem(IDC_CHECK23))->SetWindowText(_T("Enable"));
+		if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 1, PLUS, MPIActionE_STOP);
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 1, MINUS, MPIActionE_STOP);
+			((CButton*)GetDlgItem(IDC_CHECK23))->SetWindowText(_T("Enable"));
+		}
 	}
 	else
 	{
-		m_pEtherCat->SetHWLimitSensorAction(1, PLUS, MPIActionNONE);
-		m_pEtherCat->SetHWLimitSensorAction(1, MINUS, MPIActionNONE);
-		((CButton*)GetDlgItem(IDC_CHECK23))->SetWindowText(_T("Disable"));
+		if (m_nCurSelAxis + 1 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 1, PLUS, MPIActionNONE);
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 1, MINUS, MPIActionNONE);
+			((CButton*)GetDlgItem(IDC_CHECK23))->SetWindowText(_T("Disable"));
+		}
 	}
 }
 
@@ -1591,15 +1786,21 @@ void CDlgMotionDlg::OnBnClickedCheck24()
 
 	if (bEnable)
 	{
-		m_pEtherCat->SetHWLimitSensorAction(2, PLUS, MPIActionE_STOP);
-		m_pEtherCat->SetHWLimitSensorAction(2, MINUS, MPIActionE_STOP);
-		((CButton*)GetDlgItem(IDC_CHECK24))->SetWindowText(_T("Enable"));
+		if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 2, PLUS, MPIActionE_STOP);
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 2, MINUS, MPIActionE_STOP);
+			((CButton*)GetDlgItem(IDC_CHECK24))->SetWindowText(_T("Enable"));
+		}
 	}
 	else
 	{
-		m_pEtherCat->SetHWLimitSensorAction(2, PLUS, MPIActionNONE);
-		m_pEtherCat->SetHWLimitSensorAction(2, MINUS, MPIActionNONE);
-		((CButton*)GetDlgItem(IDC_CHECK24))->SetWindowText(_T("Disable"));
+		if (m_nCurSelAxis + 2 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 2, PLUS, MPIActionNONE);
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 2, MINUS, MPIActionNONE);
+			((CButton*)GetDlgItem(IDC_CHECK24))->SetWindowText(_T("Disable"));
+		}
 	}
 }
 
@@ -1614,15 +1815,21 @@ void CDlgMotionDlg::OnBnClickedCheck25()
 
 	if (bEnable)
 	{
-		m_pEtherCat->SetHWLimitSensorAction(3, PLUS, MPIActionE_STOP);
-		m_pEtherCat->SetHWLimitSensorAction(3, MINUS, MPIActionE_STOP);
-		((CButton*)GetDlgItem(IDC_CHECK25))->SetWindowText(_T("Enable"));
+		if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 3, PLUS, MPIActionE_STOP);
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 3, MINUS, MPIActionE_STOP);
+			((CButton*)GetDlgItem(IDC_CHECK25))->SetWindowText(_T("Enable"));
+		}
 	}
 	else
 	{
-		m_pEtherCat->SetHWLimitSensorAction(3, PLUS, MPIActionNONE);
-		m_pEtherCat->SetHWLimitSensorAction(3, MINUS, MPIActionNONE);
-		((CButton*)GetDlgItem(IDC_CHECK25))->SetWindowText(_T("Disable"));
+		if (m_nCurSelAxis + 3 < m_pEtherCat->GetTotalAxis())
+		{
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 3, PLUS, MPIActionNONE);
+			m_pEtherCat->SetHWLimitSensorAction(m_nCurSelAxis + 3, MINUS, MPIActionNONE);
+			((CButton*)GetDlgItem(IDC_CHECK25))->SetWindowText(_T("Disable"));
+		}
 	}
 }
 
@@ -1630,6 +1837,20 @@ void CDlgMotionDlg::InitDlg()
 {
 	if (!m_pEtherCat)
 		return;
+
+	CWnd* pStatic[3] = { 0 };
+	pStatic[0] = GetDlgItem(IDC_STATIC_AXIS1);
+	pStatic[1] = GetDlgItem(IDC_STATIC_AXIS2);
+	pStatic[2] = GetDlgItem(IDC_STATIC_AXIS3);
+
+	//CString sCaption;
+	//sCaption.Format(_T("Axis%d"), m_nCurSelAxis + 1);
+	//pStatic[0]->SetWindowText(sCaption);
+	//sCaption.Format(_T("Axis%d"), m_nCurSelAxis + 2);
+	//pStatic[1]->SetWindowText(sCaption);
+	//sCaption.Format(_T("Axis%d"), m_nCurSelAxis + 3);
+	//pStatic[2]->SetWindowText(sCaption);
+
 
 	CWnd* pWnd[84] = { 0 };
 
@@ -1760,64 +1981,71 @@ void CDlgMotionDlg::InitDlg()
 	pWnd[83] = GetDlgItem(IDC_BUTTON28);
 
 
-	for (int nID = 0; nID < m_pEtherCat->m_ParamCtrl.nTotMotion; nID++)
+	for (int nID = m_nCurSelAxis; nID < m_pEtherCat->m_ParamCtrl.nTotMotion; nID++)
 	{
+		int nIdx = nID - m_nCurSelAxis;
+		if (nIdx >= MAX_AXIS_UI)
+			break;
+
 		if (m_pEtherCat->m_pParamMotion[nID].Home.bAct)
 		{
-			pWnd[nID + MAX_AXIS * 0]->EnableWindow(TRUE);	// Motor Type	
-			pWnd[nID + MAX_AXIS * 1]->EnableWindow(TRUE);	// Enable
-			pWnd[nID + MAX_AXIS * 2]->EnableWindow(TRUE);	// Clear Fault
-			pWnd[nID + MAX_AXIS * 3]->EnableWindow(TRUE);	// P2P Speed			
-			pWnd[nID + MAX_AXIS * 4]->EnableWindow(TRUE);	// Jog Speed			
-			pWnd[nID + MAX_AXIS * 5]->EnableWindow(TRUE);	// Acceleration			
-			pWnd[nID + MAX_AXIS * 6]->EnableWindow(TRUE);	// Deceleration
-			pWnd[nID + MAX_AXIS * 7]->EnableWindow(TRUE);	// Zero Position
-			pWnd[nID + MAX_AXIS * 8]->EnableWindow(TRUE);	// Command Pos.
-			pWnd[nID + MAX_AXIS * 9]->EnableWindow(TRUE);	// Actual Pos.
-			pWnd[nID + MAX_AXIS * 10]->EnableWindow(TRUE);	// Position 1
-			pWnd[nID + MAX_AXIS * 11]->EnableWindow(TRUE);	// Position 2
-			pWnd[nID + MAX_AXIS * 12]->EnableWindow(TRUE);	// Move Pos. 1
-			pWnd[nID + MAX_AXIS * 13]->EnableWindow(TRUE);	// Move Pos. 2
-			pWnd[nID + MAX_AXIS * 14]->EnableWindow(TRUE);	// Move Jog -
-			pWnd[nID + MAX_AXIS * 15]->EnableWindow(TRUE);	// Move Jog +
+			pWnd[nIdx + MAX_AXIS_UI * 0]->EnableWindow(TRUE);	// Motor Type	
+			pWnd[nIdx + MAX_AXIS_UI * 1]->EnableWindow(TRUE);	// Enable
+			DispMotorEnable(nIdx);
+			pWnd[nIdx + MAX_AXIS_UI * 2]->EnableWindow(TRUE);	// Clear Fault
+			pWnd[nIdx + MAX_AXIS_UI * 3]->EnableWindow(TRUE);	// P2P Speed			
+			pWnd[nIdx + MAX_AXIS_UI * 4]->EnableWindow(TRUE);	// Jog Speed			
+			pWnd[nIdx + MAX_AXIS_UI * 5]->EnableWindow(TRUE);	// Acceleration			
+			pWnd[nIdx + MAX_AXIS_UI * 6]->EnableWindow(TRUE);	// Deceleration
+			pWnd[nIdx + MAX_AXIS_UI * 7]->EnableWindow(TRUE);	// Zero Position
+			pWnd[nIdx + MAX_AXIS_UI * 8]->EnableWindow(TRUE);	// Command Pos.
+			pWnd[nIdx + MAX_AXIS_UI * 9]->EnableWindow(TRUE);	// Actual Pos.
+			pWnd[nIdx + MAX_AXIS_UI * 10]->EnableWindow(TRUE);	// Position 1
+			pWnd[nIdx + MAX_AXIS_UI * 10]->SetWindowText(_T(""));	// Position 1
+			pWnd[nIdx + MAX_AXIS_UI * 11]->EnableWindow(TRUE);	// Position 2
+			pWnd[nIdx + MAX_AXIS_UI * 11]->SetWindowText(_T(""));	// Position 2
+			pWnd[nIdx + MAX_AXIS_UI * 12]->EnableWindow(TRUE);	// Move Pos. 1
+			pWnd[nIdx + MAX_AXIS_UI * 13]->EnableWindow(TRUE);	// Move Pos. 2
+			pWnd[nIdx + MAX_AXIS_UI * 14]->EnableWindow(TRUE);	// Move Jog -
+			pWnd[nIdx + MAX_AXIS_UI * 15]->EnableWindow(TRUE);	// Move Jog +
 
-			pWnd[nID + MAX_AXIS * 16]->EnableWindow(TRUE);	// Sensor Action
-			((CButton*)pWnd[nID + MAX_AXIS * 16])->SetCheck(TRUE);
+			pWnd[nIdx + MAX_AXIS_UI * 16]->EnableWindow(TRUE);	// Sensor Action
+			((CButton*)pWnd[nIdx + MAX_AXIS_UI * 16])->SetCheck(TRUE);
 			if (TRUE)
 			{
 				m_pEtherCat->SetHWLimitSensorAction(nID, PLUS, MPIActionE_STOP);
 				m_pEtherCat->SetHWLimitSensorAction(nID, MINUS, MPIActionE_STOP);
-				((CButton*)pWnd[nID + MAX_AXIS * 16])->SetWindowText(_T("Enable"));
+				((CButton*)pWnd[nIdx + MAX_AXIS_UI * 16])->SetWindowText(_T("Enable"));
 			}
 
-			pWnd[nID + MAX_AXIS * 17]->EnableWindow(TRUE);	// Limit Pos
-			pWnd[nID + MAX_AXIS * 18]->EnableWindow(TRUE);	// Home Sens
-			pWnd[nID + MAX_AXIS * 19]->EnableWindow(TRUE);	// Limit Neg
-			pWnd[nID + MAX_AXIS * 20]->EnableWindow(TRUE);	// Homming
+			pWnd[nIdx + MAX_AXIS_UI * 17]->EnableWindow(TRUE);	// Limit Pos
+			pWnd[nIdx + MAX_AXIS_UI * 18]->EnableWindow(TRUE);	// Home Sens
+			pWnd[nIdx + MAX_AXIS_UI * 19]->EnableWindow(TRUE);	// Limit Neg
+			pWnd[nIdx + MAX_AXIS_UI * 20]->EnableWindow(TRUE);	// Homming
 		}
 		else
 		{
-			pWnd[nID + MAX_AXIS * 0]->EnableWindow(FALSE);	// Motor Type	
-			pWnd[nID + MAX_AXIS * 1]->EnableWindow(FALSE);	// Enable
-			pWnd[nID + MAX_AXIS * 2]->EnableWindow(FALSE);	// Clear Fault
-			pWnd[nID + MAX_AXIS * 3]->EnableWindow(FALSE);	// P2P Speed			
-			pWnd[nID + MAX_AXIS * 4]->EnableWindow(FALSE);	// Jog Speed			
-			pWnd[nID + MAX_AXIS * 5]->EnableWindow(FALSE);	// Acceleration			
-			pWnd[nID + MAX_AXIS * 6]->EnableWindow(FALSE);	// Deceleration
-			pWnd[nID + MAX_AXIS * 7]->EnableWindow(FALSE);	// Zero Position
-			pWnd[nID + MAX_AXIS * 8]->EnableWindow(FALSE);	// Command Pos.
-			pWnd[nID + MAX_AXIS * 9]->EnableWindow(FALSE);	// Actual Pos.
-			pWnd[nID + MAX_AXIS * 10]->EnableWindow(FALSE);	// Position 1
-			pWnd[nID + MAX_AXIS * 11]->EnableWindow(FALSE);	// Position 2
-			pWnd[nID + MAX_AXIS * 12]->EnableWindow(FALSE);	// Move Pos. 1
-			pWnd[nID + MAX_AXIS * 13]->EnableWindow(FALSE);	// Move Pos. 2
-			pWnd[nID + MAX_AXIS * 14]->EnableWindow(FALSE);	// Move Jog -
-			pWnd[nID + MAX_AXIS * 15]->EnableWindow(FALSE);	// Move Jog +
-			pWnd[nID + MAX_AXIS * 16]->EnableWindow(FALSE);	// Sensor Action
-			pWnd[nID + MAX_AXIS * 17]->EnableWindow(FALSE);	// Limit Pos
-			pWnd[nID + MAX_AXIS * 18]->EnableWindow(FALSE);	// Home Sens
-			pWnd[nID + MAX_AXIS * 19]->EnableWindow(FALSE);	// Limit Neg
-			pWnd[nID + MAX_AXIS * 20]->EnableWindow(FALSE);	// Homming
+			pWnd[nIdx + MAX_AXIS_UI * 0]->EnableWindow(FALSE);	// Motor Type	
+			pWnd[nIdx + MAX_AXIS_UI * 1]->EnableWindow(FALSE);	// Enable
+			pWnd[nIdx + MAX_AXIS_UI * 2]->EnableWindow(FALSE);	// Clear Fault
+			pWnd[nIdx + MAX_AXIS_UI * 3]->EnableWindow(FALSE);	// P2P Speed			
+			pWnd[nIdx + MAX_AXIS_UI * 4]->EnableWindow(FALSE);	// Jog Speed			
+			pWnd[nIdx + MAX_AXIS_UI * 5]->EnableWindow(FALSE);	// Acceleration			
+			pWnd[nIdx + MAX_AXIS_UI * 6]->EnableWindow(FALSE);	// Deceleration
+			pWnd[nIdx + MAX_AXIS_UI * 7]->EnableWindow(FALSE);	// Zero Position
+			pWnd[nIdx + MAX_AXIS_UI * 8]->EnableWindow(FALSE);	// Command Pos.
+			pWnd[nIdx + MAX_AXIS_UI * 9]->EnableWindow(FALSE);	// Actual Pos.
+			pWnd[nIdx + MAX_AXIS_UI * 10]->EnableWindow(FALSE);	// Position 1
+			pWnd[nIdx + MAX_AXIS_UI * 11]->EnableWindow(FALSE);	// Position 2
+			pWnd[nIdx + MAX_AXIS_UI * 12]->EnableWindow(FALSE);	// Move Pos. 1
+			pWnd[nIdx + MAX_AXIS_UI * 13]->EnableWindow(FALSE);	// Move Pos. 2
+			pWnd[nIdx + MAX_AXIS_UI * 14]->EnableWindow(FALSE);	// Move Jog -
+			pWnd[nIdx + MAX_AXIS_UI * 15]->EnableWindow(FALSE);	// Move Jog +
+			pWnd[nIdx + MAX_AXIS_UI * 16]->EnableWindow(FALSE);	// Sensor Action
+			pWnd[nIdx + MAX_AXIS_UI * 17]->EnableWindow(FALSE);	// Limit Pos
+			pWnd[nIdx + MAX_AXIS_UI * 18]->EnableWindow(FALSE);	// Home Sens
+			pWnd[nIdx + MAX_AXIS_UI * 19]->EnableWindow(FALSE);	// Limit Neg
+			pWnd[nIdx + MAX_AXIS_UI * 20]->EnableWindow(FALSE);	// Homming
 		}
 	}
 
@@ -1825,81 +2053,86 @@ void CDlgMotionDlg::InitDlg()
 	{
 		for (int nID = m_pEtherCat->m_ParamCtrl.nTotMotion; nID < MAX_AXIS; nID++)
 		{
-			pWnd[nID + MAX_AXIS * 0]->EnableWindow(FALSE);	// Motor Type	
-			pWnd[nID + MAX_AXIS * 1]->EnableWindow(FALSE);	// Enable
-			pWnd[nID + MAX_AXIS * 2]->EnableWindow(FALSE);	// Clear Fault
-			pWnd[nID + MAX_AXIS * 3]->EnableWindow(FALSE);	// P2P Speed			
-			pWnd[nID + MAX_AXIS * 4]->EnableWindow(FALSE);	// Jog Speed			
-			pWnd[nID + MAX_AXIS * 5]->EnableWindow(FALSE);	// Acceleration			
-			pWnd[nID + MAX_AXIS * 6]->EnableWindow(FALSE);	// Deceleration
-			pWnd[nID + MAX_AXIS * 7]->EnableWindow(FALSE);	// Zero Position
-			pWnd[nID + MAX_AXIS * 8]->EnableWindow(FALSE);	// Command Pos.
-			pWnd[nID + MAX_AXIS * 9]->EnableWindow(FALSE);	// Actual Pos.
-			pWnd[nID + MAX_AXIS * 10]->EnableWindow(FALSE);	// Position 1
-			pWnd[nID + MAX_AXIS * 11]->EnableWindow(FALSE);	// Position 2
-			pWnd[nID + MAX_AXIS * 12]->EnableWindow(FALSE);	// Move Pos. 1
-			pWnd[nID + MAX_AXIS * 13]->EnableWindow(FALSE);	// Move Pos. 2
-			pWnd[nID + MAX_AXIS * 14]->EnableWindow(FALSE);	// Move Jog -
-			pWnd[nID + MAX_AXIS * 15]->EnableWindow(FALSE);	// Move Jog +
-			pWnd[nID + MAX_AXIS * 16]->EnableWindow(FALSE);	// Sensor Action
-			pWnd[nID + MAX_AXIS * 17]->EnableWindow(FALSE);	// Limit Pos
-			pWnd[nID + MAX_AXIS * 18]->EnableWindow(FALSE);	// Home Sens
-			pWnd[nID + MAX_AXIS * 19]->EnableWindow(FALSE);	// Limit Neg
-			pWnd[nID + MAX_AXIS * 20]->EnableWindow(FALSE);	// Homming
+			int nIdx = nID - m_nCurSelAxis;
+			if (nIdx >= MAX_AXIS_UI)
+				break;
+			((CButton*)pWnd[nIdx + MAX_AXIS_UI * 0])->SetCheck(FALSE);	// Motor Type	
+			((CButton*)pWnd[nIdx + MAX_AXIS_UI * 0])->SetWindowText(_T(""));
+			((CButton*)pWnd[nIdx + MAX_AXIS_UI * 1])->SetCheck(FALSE);	// Enable
+			//((CButton*)pWnd[nIdx + MAX_AXIS_UI * 1])->SetWindowText(_T(""));
+
+			//pWnd[nIdx + MAX_AXIS_UI * 2]->SetWindowText(_T(""));		// Clear Fault
+			pWnd[nIdx + MAX_AXIS_UI * 3]->SetWindowText(_T(""));	// P2P Speed			
+			pWnd[nIdx + MAX_AXIS_UI * 4]->SetWindowText(_T(""));	// Jog Speed			
+			pWnd[nIdx + MAX_AXIS_UI * 5]->SetWindowText(_T(""));	// Acceleration			
+			pWnd[nIdx + MAX_AXIS_UI * 6]->SetWindowText(_T(""));	// Deceleration
+			//pWnd[nIdx + MAX_AXIS_UI * 7]->SetWindowText(_T(""));	// Zero Position
+			//pWnd[nIdx + MAX_AXIS_UI * 8]->SetWindowText(_T(""));	// Command Pos.
+			//pWnd[nIdx + MAX_AXIS_UI * 9]->SetWindowText(_T(""));	// Actual Pos.
+			pWnd[nIdx + MAX_AXIS_UI * 10]->SetWindowText(_T(""));	// Position 1
+			pWnd[nIdx + MAX_AXIS_UI * 11]->SetWindowText(_T(""));	// Position 2
+			//pWnd[nIdx + MAX_AXIS_UI * 12]->SetWindowText(_T(""));	// Move Pos. 1
+			//pWnd[nIdx + MAX_AXIS_UI * 13]->SetWindowText(_T(""));	// Move Pos. 2
+			//pWnd[nIdx + MAX_AXIS_UI * 14]->SetWindowText(_T(""));	// Move Jog -
+			//pWnd[nIdx + MAX_AXIS_UI * 15]->SetWindowText(_T(""));	// Move Jog +
+			//pWnd[nIdx + MAX_AXIS_UI * 16]->SetWindowText(_T(""));	// Sensor Action
+			((CButton*)pWnd[nIdx + MAX_AXIS_UI * 17])->SetCheck(FALSE);	// Limit Pos
+			((CButton*)pWnd[nIdx + MAX_AXIS_UI * 18])->SetCheck(FALSE);	// Home Sens
+			((CButton*)pWnd[nIdx + MAX_AXIS_UI * 19])->SetCheck(FALSE);	// Limit Neg
+			((CButton*)pWnd[nIdx + MAX_AXIS_UI * 20])->SetCheck(FALSE);	// Homming
+
+			pWnd[nIdx + MAX_AXIS_UI * 0]->EnableWindow(FALSE);	// Motor Type	
+			pWnd[nIdx + MAX_AXIS_UI * 1]->EnableWindow(FALSE);	// Enable
+			pWnd[nIdx + MAX_AXIS_UI * 2]->EnableWindow(FALSE);	// Clear Fault
+			pWnd[nIdx + MAX_AXIS_UI * 3]->EnableWindow(FALSE);	// P2P Speed			
+			pWnd[nIdx + MAX_AXIS_UI * 4]->EnableWindow(FALSE);	// Jog Speed			
+			pWnd[nIdx + MAX_AXIS_UI * 5]->EnableWindow(FALSE);	// Acceleration			
+			pWnd[nIdx + MAX_AXIS_UI * 6]->EnableWindow(FALSE);	// Deceleration
+			pWnd[nIdx + MAX_AXIS_UI * 7]->EnableWindow(FALSE);	// Zero Position
+			pWnd[nIdx + MAX_AXIS_UI * 8]->EnableWindow(FALSE);	// Command Pos.
+			pWnd[nIdx + MAX_AXIS_UI * 9]->EnableWindow(FALSE);	// Actual Pos.
+			pWnd[nIdx + MAX_AXIS_UI * 10]->EnableWindow(FALSE);	// Position 1
+			pWnd[nIdx + MAX_AXIS_UI * 11]->EnableWindow(FALSE);	// Position 2
+			pWnd[nIdx + MAX_AXIS_UI * 12]->EnableWindow(FALSE);	// Move Pos. 1
+			pWnd[nIdx + MAX_AXIS_UI * 13]->EnableWindow(FALSE);	// Move Pos. 2
+			pWnd[nIdx + MAX_AXIS_UI * 14]->EnableWindow(FALSE);	// Move Jog -
+			pWnd[nIdx + MAX_AXIS_UI * 15]->EnableWindow(FALSE);	// Move Jog +
+			pWnd[nIdx + MAX_AXIS_UI * 16]->EnableWindow(FALSE);	// Sensor Action
+			pWnd[nIdx + MAX_AXIS_UI * 17]->EnableWindow(FALSE);	// Limit Pos
+			pWnd[nIdx + MAX_AXIS_UI * 18]->EnableWindow(FALSE);	// Home Sens
+			pWnd[nIdx + MAX_AXIS_UI * 19]->EnableWindow(FALSE);	// Limit Neg
+			pWnd[nIdx + MAX_AXIS_UI * 20]->EnableWindow(FALSE);	// Homming
 		}
 	}
 }
 
-
-
-void CDlgMotionDlg::OnSelchangeCombo3()
-{
-	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
-	int nID = 0, nID2 = 0;
-
-	CComboBox* pCtlComboRepeatAxis = (CComboBox*)GetDlgItem(IDC_COMBO3);
-	int nIndex = pCtlComboRepeatAxis->GetCurSel();
-	if (nIndex == LB_ERR)	return;	
-	m_nCurSelRepeatAxis = nIndex;
-
-	//int nIndex = pCtlComboSlaver->GetCurSel();
-	//pCtlComboSlaver->GetLBText(nIndex, sSelName);
-
-	//for (nID = 0; nID < MAX_AXIS; nID++)
-	//{
-	//	if (GetMotorName(nID) == sSelName)
-	//	{
-	//		m_nCurSelSlaver = nID;
-	//		pCtlChkBtn->EnableWindow(TRUE);
-	//		break;
-	//	}
-	//}
-
-	//if (!pCtlComboRepeatAxis->IsWindowEnabled())
-	//	pCtlComboRepeatAxis->EnableWindow(TRUE);
-	//
-	//int nCount = pCtlComboRepeatAxis->GetCount();
-	//if (nCount > 0)
-	//	pCtlComboRepeatAxis->ResetContent();
-
-
-	//pCtlComboSlaver->SetWindowText(_T(""));
-	//m_nCurSelSlaver = -1;
-	//pCtlChkBtn->EnableWindow(FALSE);
-}
-
 void CDlgMotionDlg::DispRepeatConf()
 {
-	CWnd* pWnd[4] = { 0 };
-	
-	pWnd[0] = GetDlgItem(IDC_EDIT25);	// Start Pos.
-	pWnd[1] = GetDlgItem(IDC_EDIT26);	// Step
-	pWnd[2] = GetDlgItem(IDC_EDIT27);	// End Pos.
-	pWnd[3] = GetDlgItem(IDC_EDIT28);	// Repeat count
+	CComboBox* pCtlComboRepeatAxis = (CComboBox*)GetDlgItem(IDC_COMBO3);
+
+	CEdit* pWnd[4] = { 0 };
+	pWnd[0] = (CEdit*)GetDlgItem(IDC_EDIT25);					// Start Pos.
+	pWnd[1] = (CEdit*)GetDlgItem(IDC_EDIT26);					// Step
+	pWnd[2] = (CEdit*)GetDlgItem(IDC_EDIT27);					// End Pos.
+	pWnd[3] = (CEdit*)GetDlgItem(IDC_EDIT28);					// Repeat count
+	CButton* pChk[3] = { 0 };
+	pChk[0] = (CButton*)GetDlgItem(IDC_CHECK26);				// Reverse
+	pChk[1] = (CButton*)GetDlgItem(IDC_CHECK27);				// Optimize
+	pChk[2] = (CButton*)GetDlgItem(IDC_CHECK30);				// Manual
+
+	pCtlComboRepeatAxis->SetCurSel(m_stRepeatConf.nAxis);
 
 	CString sVal;	
 	sVal.Format(_T("%.6f"), m_stRepeatConf.dPosStart);
 	pWnd[0]->SetWindowText(sVal);
+	sVal.Format(_T("%.6f"), m_stRepeatConf.dStep);
+	pWnd[1]->SetWindowText(sVal);
+	sVal.Format(_T("%.6f"), m_stRepeatConf.dPosEnd);
+	pWnd[2]->SetWindowText(sVal);
+	sVal.Format(_T("%d"), m_stRepeatConf.nRepeat);
+	pWnd[3]->SetWindowText(sVal);
+
+	pChk[0]->SetCheck(m_stRepeatConf.bReverse);
 }
 
 void CDlgMotionDlg::SaveRepeatConf()
@@ -1924,6 +2157,8 @@ void CDlgMotionDlg::SaveRepeatConf()
 	::WritePrivateProfileString(_T("INFO"), _T("Reverse"), strData, sPath);
 	strData.Format(_T("%d"), m_stRepeatConf.bOptimize ? 1 : 0);
 	::WritePrivateProfileString(_T("INFO"), _T("Optimize"), strData, sPath);
+	strData.Format(_T("%d"), m_stRepeatConf.bManual ? 1 : 0);
+	::WritePrivateProfileString(_T("INFO"), _T("Manual"), strData, sPath);
 }
 
 void CDlgMotionDlg::LoadRepeatConf()
@@ -1976,6 +2211,11 @@ void CDlgMotionDlg::LoadRepeatConf()
 		m_stRepeatConf.bOptimize = _ttoi(szData) ? TRUE : FALSE;
 	else
 		m_stRepeatConf.bOptimize = FALSE;
+
+	if (0 < ::GetPrivateProfileString(_T("INFO"), _T("Manual"), NULL, szData, sizeof(szData), sPath))
+		m_stRepeatConf.bManual = _ttoi(szData) ? TRUE : FALSE;
+	else
+		m_stRepeatConf.bManual = FALSE;
 }
 
 
@@ -2023,6 +2263,16 @@ BOOL CDlgMotionDlg::IsRepeatTest()
 	return m_bRepeatTest;
 }
 
+BOOL CDlgMotionDlg::IsManual()
+{
+	return m_stRepeatConf.bManual;
+}
+
+BOOL CDlgMotionDlg::IsStepNext()
+{
+	return m_bStepNext;
+}
+
 void CDlgMotionDlg::DoRepeatTest()
 {
 	double dPosAct;
@@ -2060,9 +2310,22 @@ void CDlgMotionDlg::DoRepeatTest()
 		{
 			if (IsRepeatTest())					// Run 버튼 체크
 			{
-				m_nStepRptTest++;
-				MoveStep();						// 스텝 위치 이동
-				IncMoveStep();					// 스텝 위치 이동 횟수
+				if (IsManual())
+				{
+					if (IsStepNext())
+					{
+						DoStepNext(FALSE);
+						m_nStepRptTest++;
+						MoveStep();						// 스텝 위치 이동
+						IncMoveStep();					// 스텝 위치 이동 횟수
+					}
+				}
+				else
+				{
+					m_nStepRptTest++;
+					MoveStep();						// 스텝 위치 이동
+					IncMoveStep();					// 스텝 위치 이동 횟수
+				}
 			}
 			else
 				m_nStepRptTest = 20;			// 반복 테스트 종료
@@ -2245,6 +2508,7 @@ void CDlgMotionDlg::UpdateRepeatConf()
 	CEdit* pEdit3 = (CEdit*)GetDlgItem(IDC_EDIT28);					// Repeat [cnt]
 	CButton* pChk0 = (CButton*)GetDlgItem(IDC_CHECK26);				// Reverse
 	CButton* pChk1 = (CButton*)GetDlgItem(IDC_CHECK27);				// Optimize
+	CButton* pChk2 = (CButton*)GetDlgItem(IDC_CHECK30);				// Manual
 
 	CString sVal;
 	m_stRepeatConf.nAxis = pCombo->GetCurSel();
@@ -2258,6 +2522,7 @@ void CDlgMotionDlg::UpdateRepeatConf()
 	m_stRepeatConf.nRepeat = _ttoi(sVal);
 	m_stRepeatConf.bReverse = pChk0->GetCheck();
 	m_stRepeatConf.bOptimize = pChk1->GetCheck();
+	m_stRepeatConf.bManual = pChk2->GetCheck();
 }
 
 BOOL CDlgMotionDlg::MoveStep()
@@ -2376,6 +2641,7 @@ void CDlgMotionDlg::EnableCtrl(BOOL bEnable)
 	CEdit* pEdit3 = (CEdit*)GetDlgItem(IDC_EDIT28);							// Repeat [cnt]
 	CButton* pChk0 = (CButton*)GetDlgItem(IDC_CHECK26);						// Reverse
 	CButton* pChk1 = (CButton*)GetDlgItem(IDC_CHECK27);						// Optimize
+	CButton* pChk2 = (CButton*)GetDlgItem(IDC_CHECK30);						// Manual
 
 	pCombo->EnableWindow(bEnable);
 	pEdit0->EnableWindow(bEnable);
@@ -2384,6 +2650,7 @@ void CDlgMotionDlg::EnableCtrl(BOOL bEnable)
 	pEdit3->EnableWindow(bEnable);
 	pChk0->EnableWindow(bEnable);
 	pChk1->EnableWindow(bEnable);
+	pChk2->EnableWindow(bEnable);
 }
 
 void CDlgMotionDlg::DispBlank()
@@ -2457,5 +2724,143 @@ CString CDlgMotionDlg::GetDateTime()
 	return sData;
 }
 
+void CDlgMotionDlg::OnBnClickedCheck29()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK29);
+	BOOL bOn = pCtlChkBtn->GetCheck();
+	if (bOn)
+	{
+		DoStepNext(TRUE);
+	}
+}
 
+void CDlgMotionDlg::DoStepNext(BOOL bNext)
+{
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK29);
+	if (IsManual())
+	{
+		m_bStepNext = bNext;
+		pCtlChkBtn->SetCheck(bNext);
+	}
+	else
+	{
+		m_bStepNext = FALSE;
+		pCtlChkBtn->SetCheck(FALSE);
+	}
+}
+
+void CDlgMotionDlg::OnBnClickedCheck30()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	CButton* pCtlChkBtn = (CButton*)GetDlgItem(IDC_CHECK30);
+	BOOL bOn = pCtlChkBtn->GetCheck();
+	m_stRepeatConf.bManual = bOn;
+	if (!IsManual())
+	{
+		CButton* pCtlChkBtn2 = (CButton*)GetDlgItem(IDC_CHECK29);
+		m_bStepNext = FALSE;
+		pCtlChkBtn2->SetCheck(FALSE);
+	}
+}
+
+void CDlgMotionDlg::OnSelchangeCombo3()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	CComboBox* pCtlComboRepeatAxis = (CComboBox*)GetDlgItem(IDC_COMBO3);
+	int nIndex = pCtlComboRepeatAxis->GetCurSel();
+	if (nIndex == LB_ERR)	return;
+	m_nCurSelRepeatAxis = nIndex;
+
+	//int nID = 0, nID2 = 0;
+	//int nIndex = pCtlComboSlaver->GetCurSel();
+	//pCtlComboSlaver->GetLBText(nIndex, sSelName);
+
+	//for (nID = 0; nID < MAX_AXIS; nID++)
+	//{
+	//	if (GetMotorName(nID) == sSelName)
+	//	{
+	//		m_nCurSelSlaver = nID;
+	//		pCtlChkBtn->EnableWindow(TRUE);
+	//		break;
+	//	}
+	//}
+
+	//if (!pCtlComboRepeatAxis->IsWindowEnabled())
+	//	pCtlComboRepeatAxis->EnableWindow(TRUE);
+	//
+	//int nCount = pCtlComboRepeatAxis->GetCount();
+	//if (nCount > 0)
+	//	pCtlComboRepeatAxis->ResetContent();
+
+
+	//pCtlComboSlaver->SetWindowText(_T(""));
+	//m_nCurSelSlaver = -1;
+	//pCtlChkBtn->EnableWindow(FALSE);
+}
+
+
+void CDlgMotionDlg::OnSelchangeCombo4()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	CComboBox* pCtlComboAxis = (CComboBox*)GetDlgItem(IDC_COMBO4);
+	int nIndex = pCtlComboAxis->GetCurSel();
+	if (nIndex == LB_ERR)	return;
+	DispChangeAxis(nIndex);
+}
+
+void CDlgMotionDlg::DispChangeAxis(int nAxis)
+{
+	m_nCurSelAxis = nAxis;
+	DispAix();
+	InitDlg();
+	DispMotorType();
+	DispMoveConf();
+}
+
+void CDlgMotionDlg::DispAix()
+{
+	if (!m_pEtherCat)
+		return;
+
+	CComboBox* pCtlComboAxis = (CComboBox*)GetDlgItem(IDC_COMBO4);
+	pCtlComboAxis->SetCurSel(m_nCurSelAxis);
+
+	CStatic* pWnd[3] = { 0 };
+	pWnd[0] = (CStatic*)GetDlgItem(IDC_STATIC_AXIS1);
+	pWnd[1] = (CStatic*)GetDlgItem(IDC_STATIC_AXIS2);
+	pWnd[2] = (CStatic*)GetDlgItem(IDC_STATIC_AXIS3);
+
+	CString sCaption;
+	int nID;
+
+	nID = m_nCurSelAxis + 1;
+	if (nID < m_pEtherCat->GetTotalAxis())
+	{
+		sCaption.Format(_T("%s"), m_pEtherCat->m_pParamAxis[nID].sName);
+		pWnd[0]->SetWindowText(sCaption);
+		GetDlgItem(IDC_STATIC_AXIS1)->SetWindowText(sCaption);
+	}
+	else
+		pWnd[0]->SetWindowText(_T(""));
+
+	nID = m_nCurSelAxis + 2;
+	if (nID < m_pEtherCat->GetTotalAxis())
+	{
+		sCaption.Format(_T("%s"), m_pEtherCat->m_pParamAxis[nID].sName);
+		pWnd[1]->SetWindowText(sCaption);
+	}
+	else
+		pWnd[1]->SetWindowText(_T(""));
+
+	nID = m_nCurSelAxis + 3;
+	if (nID < m_pEtherCat->GetTotalAxis())
+	{
+		sCaption.Format(_T("%s"), m_pEtherCat->m_pParamAxis[nID].sName);
+		pWnd[2]->SetWindowText(sCaption);
+	}
+	else
+		pWnd[2]->SetWindowText(_T(""));
+}
 

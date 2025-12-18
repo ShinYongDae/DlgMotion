@@ -18,7 +18,7 @@ typedef struct stRepeatTest
 {
 	int			nAxis, nRepeat;
 	double		dPosStart, dStep, dPosEnd;
-	BOOL		bReverse, bOptimize;
+	BOOL		bReverse, bOptimize, bManual;
 
 	stRepeatTest()
 	{
@@ -29,6 +29,7 @@ typedef struct stRepeatTest
 		dPosEnd = 0.0;
 		bReverse = FALSE;
 		bOptimize = FALSE;
+		bManual = FALSE;
 	}
 }RptTest;
 
@@ -44,7 +45,7 @@ class CDlgMotionDlg : public CDialog
 	CEtherCat *m_pEtherCat;
 	int m_nStatus[MAX_AXIS];
 	BOOL m_bTIM_DISP_ENC;
-	int m_nCurSelMaster, m_nCurSelSlaver, m_nCurSelRepeatAxis;
+	int m_nCurSelMaster, m_nCurSelSlaver, m_nCurSelRepeatAxis, m_nCurSelAxis;
 	CMyBtn myBtnJogP[4], myBtnJogM[4];
 
 	double m_dEncAct[MAX_AXIS], m_dEncCmd[MAX_AXIS];
@@ -79,7 +80,7 @@ class CDlgMotionDlg : public CDialog
 	void StartRepeatTest();
 	void StopRepeatTest();
 
-	BOOL m_bRepeatTest, m_bReverse;
+	BOOL m_bRepeatTest, m_bReverse, m_bStepNext;
 	int m_nStepRptTest, m_nRepeat, m_nMoveStep;
 	void DoRepeatTest();
 	void UpdateRepeatConf();
@@ -100,6 +101,10 @@ class CDlgMotionDlg : public CDialog
 	double GetProgress();
 	void IncMoveStep();
 	void ResetMoveStep();
+	void DoStepNext(BOOL bNext);
+	void DispChangeAxis(int nAxis=0);
+	void DispAix();
+	void DispMotorEnable(int nWndIdx);
 
 // 생성입니다.
 public:
@@ -120,6 +125,8 @@ public:
 
 	static void ProcThrd0(const LPVOID lpContext);
 	BOOL IsRepeatTest();
+	BOOL IsStepNext();
+	BOOL IsManual();
 	CString GetDateTime();
 
 // 대화 상자 데이터입니다.
@@ -187,4 +194,7 @@ public:
 	afx_msg void OnBnClickedCheck27();
 	afx_msg void OnBnClickedButton30();
 	afx_msg void OnBnClickedButton31();
+	afx_msg void OnBnClickedCheck29();
+	afx_msg void OnBnClickedCheck30();
+	afx_msg void OnSelchangeCombo4();
 };
