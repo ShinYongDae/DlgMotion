@@ -99,6 +99,7 @@ CNmcDevice::CNmcDevice(CWnd* pParent)
 	m_lGantryEnable = -1;
 	m_bGantryEnabled = FALSE;
 
+	m_bInitDevice = FALSE;
 }
 
 CNmcDevice::~CNmcDevice()
@@ -642,8 +643,7 @@ BOOL CNmcDevice::InitDevice(int nDevice)
 		}
 	}
 
-
-
+	m_bInitDevice = TRUE;
 	return TRUE;
 }
 
@@ -3419,4 +3419,9 @@ BOOL CNmcDevice::EscapeSlaveLimit()
 	long lSlave = m_lGantrylSlave;
 
 	return GetAxis(lSlave)->EscapeLimit();
+}
+
+BOOL CNmcDevice::IsInitDevice()
+{
+	return m_bInitDevice;
 }

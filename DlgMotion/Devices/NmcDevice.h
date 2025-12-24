@@ -83,6 +83,8 @@ class CNmcDevice : public CWnd
 	//CWindowVersion m_cWindowVersionCollect;
 	//tpOs GetWindowVersion();
 
+	BOOL m_bInitDevice;
+
 public:
 // Construction
 
@@ -207,6 +209,7 @@ public:
 	BOOL GantryStop();
 
 	BOOL EscapeSlaveLimit();
+	BOOL IsInitDevice();
 
 // Overrides
 	// ClassWizard generated virtual function overrides

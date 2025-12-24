@@ -52,7 +52,7 @@ class CDlgMotionDlg : public CDialog
 	unsigned long m_ulDispIn, m_ulDispOut, m_ulOut;
 
 	void InitDlg();
-	void Init();
+	BOOL Init();
 	void InitBtn();
 	void Close();
 

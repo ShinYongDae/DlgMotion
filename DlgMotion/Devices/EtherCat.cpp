@@ -1135,7 +1135,8 @@ BOOL CEtherCat::InitNmcBoard()
 
 	if (m_pNmcDevice)
 	{
-		m_pNmcDevice->InitDevice(1); // 1 is Number Of NMMC Board.
+		if (!m_pNmcDevice->InitDevice(1)) // 1 is Number Of NMMC Board.
+			return FALSE;
 		Sleep(100);
 	}
 	else
@@ -1663,9 +1664,12 @@ BOOL CEtherCat::IsServoOn(int nMotorID)
 
 void CEtherCat::MotionAbortAll()
 {
-	for (int nAxisId = 0; nAxisId < m_ParamCtrl.nTotAxis; nAxisId++)
+	if (m_pNmcDevice->IsInitDevice())
 	{
-		MotionAbort(nAxisId);	// equalize Command position and Actual Position
+		for (int nAxisId = 0; nAxisId < m_ParamCtrl.nTotAxis; nAxisId++)
+		{
+			MotionAbort(nAxisId);	// equalize Command position and Actual Position
+		}
 	}
 }
 

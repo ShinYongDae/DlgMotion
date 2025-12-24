@@ -152,7 +152,11 @@ BOOL CDlgMotionDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
-	Init(); // Load MotionParam.ini
+	if (!Init()) // Load MotionParam.ini
+	{
+		OnOK();
+		return FALSE;
+	}
 	DispChangeAxis();
 	DispRepeatConf();
 
@@ -195,7 +199,7 @@ HCURSOR CDlgMotionDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-void CDlgMotionDlg::Init()
+BOOL CDlgMotionDlg::Init()
 {
 	if (!m_pEtherCat)
 	{
@@ -204,6 +208,7 @@ void CDlgMotionDlg::Init()
 		{
 			AfxMessageBox(_T("XMP 보드 초기화 실패, 다시 시작하세요.!!!"));
 			PostMessage(WM_CLOSE);
+			return FALSE;
 		}
 	}
 
@@ -286,6 +291,8 @@ void CDlgMotionDlg::Init()
 	InitBtn();
 
 	LoadRepeatConf();
+
+	return TRUE;
 }
 
 void CDlgMotionDlg::InitBtn()
@@ -511,9 +518,9 @@ void CDlgMotionDlg::DispLimitSens()
 	if (!m_pEtherCat)
 		return;
 
-	CButton* pCtlChkBtnLimitNeg[4] = { 0 };
-	CButton* pCtlChkBtnLimitHome[4] = { 0 };
-	CButton* pCtlChkBtnLimitPos[4] = { 0 };
+	CButton* pCtlChkBtnLimitNeg[MAX_AXIS_UI] = { 0 };
+	CButton* pCtlChkBtnLimitHome[MAX_AXIS_UI] = { 0 };
+	CButton* pCtlChkBtnLimitPos[MAX_AXIS_UI] = { 0 };
 
 	pCtlChkBtnLimitPos[0] = (CButton*)GetDlgItem(IDC_CHECK9);
 	pCtlChkBtnLimitPos[1] = (CButton*)GetDlgItem(IDC_CHECK10);
@@ -530,12 +537,15 @@ void CDlgMotionDlg::DispLimitSens()
 	pCtlChkBtnLimitNeg[2] = (CButton*)GetDlgItem(IDC_CHECK19);
 	pCtlChkBtnLimitNeg[3] = (CButton*)GetDlgItem(IDC_CHECK20);
 
-	for (int nID = m_nCurSelAxis; nID < m_pEtherCat->m_ParamCtrl.nTotAxis; nID++)
+	for (int nID = m_nCurSelAxis; nID < m_nCurSelAxis + MAX_AXIS_UI; nID++)
 	{
-		int nIdx = nID - m_nCurSelAxis;
-		pCtlChkBtnLimitNeg[nIdx]->SetCheck(m_pEtherCat->CheckLimitSwitch(nID, MINUS));
-		pCtlChkBtnLimitHome[nIdx]->SetCheck(m_pEtherCat->CheckHomeSwitch(nID));
-		pCtlChkBtnLimitPos[nIdx]->SetCheck(m_pEtherCat->CheckLimitSwitch(nID, PLUS));
+		if (nID < m_pEtherCat->m_ParamCtrl.nTotAxis)
+		{
+			int nIdx = nID - m_nCurSelAxis;
+			pCtlChkBtnLimitNeg[nIdx]->SetCheck(m_pEtherCat->CheckLimitSwitch(nID, MINUS));
+			pCtlChkBtnLimitHome[nIdx]->SetCheck(m_pEtherCat->CheckHomeSwitch(nID));
+			pCtlChkBtnLimitPos[nIdx]->SetCheck(m_pEtherCat->CheckLimitSwitch(nID, PLUS));
+		}
 	}
 }
 
